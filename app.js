@@ -10,7 +10,7 @@ import {
     initDB, getCustomers, saveCustomer, deleteCustomer,
     getDailyRecords, saveDailyRecord, getDailyRecord,
     recordPayment, getSettings, saveSettings, getPayments, deleteMonthPayments,
-    getLifetimeStats, getLocalData
+    getLifetimeStats, getLocalData, getAggregatesBeforeDate
 } from './db.js';
 import { SEED_CUSTOMERS } from './seed-data.js';
 import {
@@ -368,7 +368,9 @@ function renderCustomerList(list) {
 
         return `
     <div class="customer-card ${statusClass}" data-id="${c.id}">
-      <div class="customer-avatar" data-action="call" data-phone="${c.phone || ''}">${initial}</div>
+      <div class="customer-avatar" data-action="call" data-phone="${c.phone || ''}" style="background:transparent;">
+          <img src="whatsapp-icon.png" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">
+      </div>
       <div class="customer-info" data-action="view">
         <div class="customer-name">${c.name}</div>
         <div class="customer-phone">${c.phone || '—'}</div>
@@ -399,8 +401,8 @@ function renderCustomerList(list) {
                 return;
             }
 
-            // Tapping anywhere else on the card → go to details
-            openCustomerView(card.dataset.id);
+            // Tapping anywhere else on the card → go directly to Entry page
+            openEntryPage(card.dataset.id);
         });
     });
 }
@@ -617,26 +619,6 @@ async function saveEntry() {
 /* ═══════════════════════════════════════════
    CUSTOMER VIEW PAGE (Admin)
 ═══════════════════════════════════════════ */
-async function openCustomerView(customerId) {
-    const cust = state.customers.find(c => c.id === customerId);
-    if (!cust) return;
-    state.currentCustomer = cust;
-    state.currentMonth = new Date().getMonth() + 1;
-    state.currentYear = new Date().getFullYear();
-    showPage('page-customer');
-    renderCustomerHero(cust);
-    await loadCustomerMonth();
-}
-
-function renderCustomerHero(cust) {
-    const initial = (cust.name || '?')[0].toUpperCase();
-    $('customerViewName').textContent = cust.name;
-    $('customerViewSub').textContent = cust.phone || '';
-    $('customerHeroAvatar').textContent = initial;
-    $('customerHeroName').textContent = cust.name;
-    $('customerHeroPhone').innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:middle;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>${cust.phone || '—'}`;
-    $('customerHeroAddress').textContent = cust.address ? `📍 ${cust.address}` : '';
-}
 
 async function loadCustomerMonth() {
     const cust = state.currentCustomer;
@@ -822,8 +804,17 @@ async function buildReportText(type) {
         `• Bill Amount: ${formatCurrency(totals.totalAmount)}`,
         `• Days Delivered: ${totals.daysDelivered}`,
         `• Paid: ${formatCurrency(paidAmt)}`,
-        `• *Outstanding: ${formatCurrency(outstanding)}*`,
     ];
+
+    const prev = await getAggregatesBeforeDate(cust.id, type === 'daily' ? dateToString(state.dashDate) : (type === 'weekly' ? dateToString(new Date(new Date().setDate(new Date().getDate() - 7))) : `${y}-${String(m).padStart(2, '0')}-01`));
+    const prevBalance = Math.max(0, prev.balance);
+
+    if (prevBalance > 0) {
+        lines.push(`• Old Balance: ${formatCurrency(prevBalance)}`);
+        lines.push(`• *Total Due: ${formatCurrency(outstanding + prevBalance)}*`);
+    } else {
+        lines.push(`• *Outstanding: ${formatCurrency(outstanding)}*`);
+    }
 
     if (settings.address) lines.push(``, `📍 *Address:* ${settings.address}`);
 
@@ -848,12 +839,67 @@ async function buildReportText(type) {
 async function sendWhatsApp(type) {
     const cust = state.currentCustomer;
     if (!cust) return;
-    const text = await buildReportText(type);
-    const phone = (cust.phone || '').replace(/\D/g, '');
-    const fullPhone = phone.length === 10 ? '91' + phone : phone;
-    window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`, '_blank');
-    closeModal('reportSendModal');
-    toast('Opening WhatsApp…', 'info');
+
+    const { currentMonth: m, currentYear: y, settings } = state;
+    let records = [];
+    let range = {};
+
+    if (type === 'daily') {
+        const dStr = dateToString(state.dashDate);
+        const rec = await getDailyRecord(cust.id, dStr).catch(() => null);
+        records = rec ? [rec] : [];
+        range = { start: dStr, end: dStr };
+    } else if (type === 'weekly') {
+        const all = await getDailyRecords(cust.id, y, m).catch(() => []);
+        const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
+        const cutoffStr = dateToString(cutoff);
+        records = all.filter(r => r.date >= cutoffStr);
+        range = { start: cutoffStr, end: dateToString(new Date()) };
+    } else {
+        records = await getDailyRecords(cust.id, y, m).catch(() => []);
+        range = {
+            start: `${y}-${String(m).padStart(2, '0')}-01`,
+            end: `${y}-${String(m).padStart(2, '0')}-${getDaysInMonth(m, y)}`
+        };
+    }
+
+    const label = type === 'daily' ? 'Daily Report' : type === 'weekly' ? 'Weekly Report' : `${getMonthName(m)} ${y} Report`;
+
+    // Get prev balance for the PDF too
+    const prevData = await getAggregatesBeforeDate(cust.id, range.start);
+    const prevBalance = Math.max(0, prevData.balance);
+
+    try {
+        const pdfFile = await generateIndividualPDF(cust, records, {
+            periodLabel: label,
+            rate: settings.rate,
+            dateRange: range,
+            paymentQr: state.paymentQr,
+            businessName: settings.businessName,
+            address: settings.address,
+            prevBalance: prevBalance,
+            output: 'file'
+        });
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+            await navigator.share({
+                files: [pdfFile],
+                title: `${cust.name} Milk Report`,
+                text: `Attached is the milk delivery report for ${label}.`
+            });
+            closeModal('reportSendModal');
+        } else {
+            throw new Error('Share not supported');
+        }
+    } catch (err) {
+        console.warn('PDF Share failed, falling back to text:', err);
+        const text = await buildReportText(type);
+        const phone = (cust.phone || '').replace(/\D/g, '');
+        const fullPhone = phone.length === 10 ? '91' + phone : phone;
+        window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`, '_blank');
+        closeModal('reportSendModal');
+        toast('PDF sharing not supported. Sent text instead.', 'info');
+    }
 }
 
 async function copyReport(type) {
@@ -929,13 +975,19 @@ async function loadReportsPage() {
 
             const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
             const totals = calcMonthlyTotals(records, state.settings.rate);
-            const outstanding = Math.max(0, totals.totalAmount - paidAmt);
+
+            // Previous Balance Calculation
+            const prev = await getAggregatesBeforeDate(c.id, dateRange.start);
+            const prevBalance = Math.max(0, (prev.totalRevenue || 0) - (prev.totalPaid || 0));
+
+            const currentOutstanding = totals.totalAmount - paidAmt;
+            const outstanding = Math.max(0, prevBalance + currentOutstanding);
 
             totalLitres += totals.totalLitres;
             totalRevenue += totals.totalAmount;
             totalPaid += paidAmt;
 
-            return { ...c, totals, paidAmt, outstanding, records };
+            return { ...c, totals, paidAmt, prevBalance, outstanding, records };
         }));
 
         state.lastReportData = dataRows; // Store for bulk actions
@@ -973,7 +1025,9 @@ async function loadReportsPage() {
                     </div>
                 </div>
                 <div class="report-row-actions">
-                    <button class="report-mini-call" data-phone="${r.phone || ''}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></button>
+                    <button class="report-mini-whatsapp" data-id="${r.id}" title="Send PDF via WhatsApp">
+                        <img src="whatsapp-icon.png" style="width:20px; height:20px;">
+                    </button>
                 </div>
             </div>
             <div class="report-row-data">
@@ -985,6 +1039,12 @@ async function loadReportsPage() {
                     <span class="data-tag-val">${formatCurrency(r.totals.totalAmount)}</span>
                     <span class="data-tag-lbl">Bill</span>
                 </div>
+                ${r.prevBalance > 0 ? `
+                <div class="data-tag">
+                    <span class="data-tag-val" style="color:#ef4444; font-weight:bold;">${formatCurrency(r.prevBalance)}</span>
+                    <span class="data-tag-lbl">Old Due</span>
+                </div>
+                ` : ''}
                 ${((period === 'month' && isPastMonth) || (period === 'year' && y < now.getFullYear())) ? `
                 <button class="report-status-badge ${statusClass}" 
                     data-pay-id="${r.id}" 
@@ -1150,19 +1210,60 @@ function attachReportListeners(list) {
                 return;
             }
 
-            // Standard Action: Call
-            const callBtn = e.target.closest('.report-mini-call');
-            if (callBtn) {
+            // Standard Action: Share WhatsApp PDF
+            const waBtn = e.target.closest('.report-mini-whatsapp');
+            if (waBtn) {
                 e.stopPropagation();
-                if (callBtn.dataset.phone) window.location.href = `tel:${callBtn.dataset.phone}`;
-                else toast('No phone number', 'error');
+                shareCustomerPDF(id);
                 return;
             }
 
-            // Standard Action: Open View
-            openCustomerView(id);
+            // Standard Action: Open Entry Page (Streamlined)
+            openEntryPage(id);
         });
     });
+}
+
+/** Individual Sharing from Reports List */
+async function shareCustomerPDF(id) {
+    const d = state.lastReportData?.find(item => item.id === id);
+    if (!d) return;
+
+    const range = getReportDateRange(state.reportPeriod);
+    const label = state.reportPeriod === 'month' ? `${getMonthName(state.reportMonth)} ${state.reportYear}` : `${range.start} to ${range.end}`;
+
+    toast(`Generating PDF for ${d.name}...`, 'info');
+
+    try {
+        const pdfFile = await generateIndividualPDF(d, d.records || [], {
+            periodLabel: label,
+            rate: state.settings.rate,
+            dateRange: range,
+            paymentQr: state.paymentQr,
+            businessName: state.settings.businessName,
+            address: state.settings.address,
+            prevBalance: d.prevBalance || 0,
+            output: 'file'
+        });
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+            await navigator.share({
+                files: [pdfFile],
+                title: `${d.name} Milk Report`,
+                text: `Attached is your milk report for ${label}.`
+            });
+        } else {
+            // Fallback to text WhatsApp
+            const text = await buildReportTextForData(d);
+            const phone = (d.phone || '').replace(/\D/g, '');
+            const fullPhone = phone.length === 10 ? '91' + phone : phone;
+            window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`, '_blank');
+        }
+    } catch (err) {
+        if (err.name === 'AbortError') return;
+        console.error(err);
+        toast('Failed to share PDF', 'error');
+    }
 }
 
 function updateReportUI() {
@@ -1209,15 +1310,55 @@ $('bulkGeneratePdf').addEventListener('click', async () => {
 
 $('bulkWhatsApp').addEventListener('click', async () => {
     const selectedData = state.lastReportData.filter(d => state.reportSelections.has(d.id));
-    toast(`Opening WhatsApp for ${selectedData.length} chats...`, 'info');
+    if (!selectedData.length) return;
+
+    const useShare = !!(navigator.share && navigator.canShare);
+    if (!useShare) {
+        toast('PDF sharing not supported on this browser. Sending text reports...', 'warning');
+    } else {
+        toast(`Sharing ${selectedData.length} PDF reports...`, 'info');
+    }
+
+    const range = getReportDateRange(state.reportPeriod);
+    const label = state.reportPeriod === 'month' ? `${getMonthName(state.reportMonth)} ${state.reportYear}` : `${range.start} to ${range.end}`;
 
     for (const d of selectedData) {
-        const text = await buildReportTextForData(d);
-        const phone = (d.phone || '').replace(/\D/g, '');
-        const fullPhone = phone.length === 10 ? '91' + phone : phone;
-        window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`, '_blank');
-        // Small delay to allow consecutive windows
-        await new Promise(r => setTimeout(r, 600));
+        try {
+            if (useShare) {
+                const pdfFile = await generateIndividualPDF(d, d.records, {
+                    periodLabel: label,
+                    rate: state.settings.rate,
+                    dateRange: range,
+                    paymentQr: state.paymentQr,
+                    businessName: state.settings.businessName,
+                    address: state.settings.address,
+                    prevBalance: d.prevBalance || 0,
+                    output: 'file'
+                });
+
+                if (navigator.canShare({ files: [pdfFile] })) {
+                    await navigator.share({
+                        files: [pdfFile],
+                        title: `${d.name} Milk Report`,
+                        text: `Attached is your milk report for ${label}.`
+                    });
+                }
+            } else {
+                // Fallback to text WhatsApp
+                const text = await buildReportTextForData(d);
+                const phone = (d.phone || '').replace(/\D/g, '');
+                const fullPhone = phone.length === 10 ? '91' + phone : phone;
+                window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`, '_blank');
+            }
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                toast('Sharing sequence stopped.', 'info');
+                break;
+            }
+            console.error(err);
+        }
+        // Small delay between shares
+        await new Promise(r => setTimeout(r, 400));
     }
 });
 
@@ -1225,15 +1366,22 @@ $('bulkWhatsApp').addEventListener('click', async () => {
 async function buildReportTextForData(d) {
     const range = getReportDateRange(state.reportPeriod);
     const biz = state.settings.businessName || 'MilkBook';
+    const prevBalance = d.prevBalance || 0;
+    const totalDue = d.outstanding; // outstanding already includes prevBalance in dataRows
 
     let text = `📦 *${biz} Delivery Report*\n\n`;
     text += `👤 *Customer:* ${d.name}\n`;
     text += `📅 *Period:* ${range.start} to ${range.end}\n`;
     text += `──────────────────\n`;
     text += `🥛 *Total Qty:* ${d.totals.totalLitres}L\n`;
-    text += `💰 *Bill Amount:* ${formatCurrency(d.totals.totalAmount)}\n`;
-    text += `✅ *Paid:* ${formatCurrency(d.paidAmt)}\n`;
-    text += `🚩 *Outstanding:* ${formatCurrency(d.outstanding)}\n`;
+    text += `💰 *Current Bill:* ${formatCurrency(d.totals.totalAmount)}\n`;
+
+    if (prevBalance > 0) {
+        text += `⚠️ *Old Balance:* ${formatCurrency(prevBalance)}\n`;
+    }
+
+    text += `✅ *Paid In Period:* ${formatCurrency(d.paidAmt)}\n`;
+    text += `🚩 *Total Due:* ${formatCurrency(totalDue)}\n`;
     text += `──────────────────\n`;
     text += `_Sent via MilkBook Smart Management_`;
     return text;
@@ -1632,6 +1780,9 @@ function wireEvents() {
 
     // ── Entry Page ──
     $('entryBackBtn')?.addEventListener('click', loadDashboard);
+    $('editCustomerEntryBtn')?.addEventListener('click', () => {
+        if (state.currentCustomer) openEditCustomer(state.currentCustomer);
+    });
     $('entryPrevDay')?.addEventListener('click', () => {
         state.entryDate.setDate(state.entryDate.getDate() - 1);
         renderEntryDate();
@@ -1689,34 +1840,6 @@ function wireEvents() {
         renderEntryHistory();
     });
 
-    // ── Customer View ──
-    $('customerBackBtn')?.addEventListener('click', loadDashboard);
-    $('customerCalendarBtn')?.addEventListener('click', () =>
-        $('customerMonthPicker').showPicker?.() || $('customerMonthPicker').click());
-    $('customerMonthPicker')?.addEventListener('change', e => {
-        const val = e.target.value; // "YYYY-MM"
-        if (!val) return;
-        const [y, m] = val.split('-').map(Number);
-        state.currentYear = y;
-        state.currentMonth = m;
-        loadCustomerMonth();
-    });
-    $('prevMonth')?.addEventListener('click', () => {
-        const { m, y } = getPrevMonth(state.currentMonth, state.currentYear);
-        state.currentMonth = m; state.currentYear = y;
-        loadCustomerMonth();
-    });
-    $('nextMonth')?.addEventListener('click', () => {
-        const { m, y } = getNextMonth(state.currentMonth, state.currentYear);
-        state.currentMonth = m; state.currentYear = y;
-        loadCustomerMonth();
-    });
-    $('addEntryBtn')?.addEventListener('click', () => {
-        if (state.currentCustomer) openEntryPage(state.currentCustomer.id);
-    });
-    $('editCustomerBtn')?.addEventListener('click', () => {
-        if (state.currentCustomer) openEditCustomer(state.currentCustomer);
-    });
     $('downloadCsvBtn')?.addEventListener('click', async () => {
         const cust = state.currentCustomer;
         const records = await getDailyRecords(cust.id, state.currentYear, state.currentMonth).catch(() => []);

@@ -155,6 +155,8 @@
                     <button class="navbar-cal-btn" id="entryCalendarBtn">📅</button>
                     <input type="date" id="entryDatePicker"
                         style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" />
+                    <button class="icon-btn" id="editCustomerEntryBtn" title="Edit"
+                        style="margin-left: 8px;">Edit</button>
                 </div>
             </div>
 
@@ -240,7 +242,31 @@
                             </div>
                             <button class="btn btn-primary btn-full save-entry-btn" id="saveEntryBtn">
                                 💾 Save Entry
+                            </button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Shared Action Toolbar -->
+                <div style="padding:0 var(--content-pad) 15px;">
+                    <div class="cust-action-toolbar"
+                        style="margin-top: 0; background: white; border-radius: 16px; padding: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1.5px solid var(--border);">
+                        <button class="cust-tool-btn" id="recordPaymentBtn">
+                            <span class="cust-tool-icon">₹</span>
+                            <span>Payment</span>
+                        </button>
+                        <button class="cust-tool-btn" id="printInvoiceBtn">
+                            <span class="cust-tool-icon">⎙</span>
+                            <span>Invoice</span>
+                        </button>
+                        <button class="cust-tool-btn" id="downloadCsvBtn">
+                            <span class="cust-tool-icon">↓</span>
+                            <span>CSV</span>
+                        </button>
+                        <button class="cust-tool-btn" id="openReportSendBtn">
+                            <span class="cust-tool-icon">⎈</span>
+                            <span>Report</span>
+                        </button>
                     </div>
                 </div>
 
@@ -264,133 +290,6 @@
             </div>
         </div>
 
-        <!-- ═══ PAGE: CUSTOMER VIEW ═══ -->
-        <div id="page-customer" class="page page-with-nav hidden">
-
-            <!-- Header -->
-            <div class="app-header">
-                <div class="header-left">
-                    <button class="back-icon-btn" id="customerBackBtn">‹</button>
-                    <div>
-                        <div class="header-title" id="customerViewName">Customer</div>
-                        <div class="header-date" id="customerViewSub"></div>
-                    </div>
-                </div>
-                <div class="header-actions">
-                    <button class="icon-btn" id="customerCalendarBtn" title="Select Month">📅</button>
-                    <input type="month" id="customerMonthPicker" style="display:none;" />
-                    <button class="icon-btn" id="editCustomerBtn" title="Edit">Edit</button>
-                </div>
-            </div>
-
-            <!-- Compact hero: avatar + name + primary CTA side by side -->
-            <div class="cust-view-hero">
-                <div class="cust-view-hero-left">
-                    <div class="customer-hero-avatar" id="customerHeroAvatar"
-                        style="width:52px;height:52px;font-size:1.4rem;">—</div>
-                    <div>
-                        <div class="customer-hero-name" style="font-size:1.1rem;" id="customerHeroName">—</div>
-                        <div class="customer-hero-phone" style="font-size:0.8rem;" id="customerHeroPhone">—</div>
-                    </div>
-                </div>
-                <button class="btn btn-primary" id="addEntryBtn"
-                    style="padding:10px 20px;font-size:0.9rem;white-space:nowrap;">
-                    + Add Entry
-                </button>
-            </div>
-
-            <!-- Pay Status Banner -->
-            <div style="padding:0 var(--content-pad);">
-                <div class="pay-status-banner pay-status-banner--due" id="payStatusBanner">
-                    <div class="pay-status-text pay-status-text--due" id="payStatusText">Outstanding Balance</div>
-                    <div class="pay-status-amount" id="payStatusAmount">₹0.00</div>
-                </div>
-            </div>
-
-            <!-- Month Selector -->
-            <div class="month-selector">
-                <button class="date-arrow" id="prevMonth">‹</button>
-                <div class="month-display" id="monthDisplay">—</div>
-                <button class="date-arrow" id="nextMonth">›</button>
-            </div>
-
-            <!-- Summary — compact 2-col grid -->
-            <div style="padding:0 var(--content-pad);">
-                <div class="summary-grid">
-                    <div class="summary-card summary-card--blue">
-                        <div class="summary-card-label">Litres</div>
-                        <div class="summary-card-value" id="summLitres">0 L</div>
-                    </div>
-                    <div class="summary-card summary-card--amber">
-                        <div class="summary-card-label">Bill</div>
-                        <div class="summary-card-value" id="summBill">₹0</div>
-                    </div>
-                    <div class="summary-card summary-card--green">
-                        <div class="summary-card-label">Days</div>
-                        <div class="summary-card-value" id="summDays">0</div>
-                    </div>
-                    <div class="summary-card summary-card--red">
-                        <div class="summary-card-label">Due</div>
-                        <div class="summary-card-value" id="summOutstanding">₹0</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Secondary actions: condensed toolbar -->
-            <div class="cust-action-toolbar">
-                <button class="cust-tool-btn" id="recordPaymentBtn">
-                    <span class="cust-tool-icon">₹</span>
-                    <span>Payment</span>
-                </button>
-                <button class="cust-tool-btn" id="printInvoiceBtn">
-                    <span class="cust-tool-icon">⎙</span>
-                    <span>Invoice</span>
-                </button>
-                <button class="cust-tool-btn" id="downloadCsvBtn">
-                    <span class="cust-tool-icon">↓</span>
-                    <span>CSV</span>
-                </button>
-                <button class="cust-tool-btn" id="openReportSendBtn">
-                    <span class="cust-tool-icon">⎈</span>
-                    <span>Report</span>
-                </button>
-            </div>
-
-            <!-- Daily History -->
-            <div style="padding:0 var(--content-pad) 8px;">
-                <div class="section-title" style="margin-bottom:10px;">Daily Records</div>
-                <!-- Lifetime Stats -->
-                <div style="padding:0 var(--content-pad); margin-top: 15px;">
-                    <div class="lifetime-stats-card">
-                        <div class="lifetime-stats-title">Lifetime Summary</div>
-                        <div class="lifetime-stats-grid">
-                            <div class="lifetime-stat-item">
-                                <span class="lifetime-stat-label">Total Qty</span>
-                                <span class="lifetime-stat-value" id="lifetimeLitres">0L</span>
-                            </div>
-                            <div class="lifetime-stat-item">
-                                <span class="lifetime-stat-label">Revenue</span>
-                                <span class="lifetime-stat-value" id="lifetimeRevenue">₹0</span>
-                            </div>
-                            <div class="lifetime-stat-item">
-                                <span class="lifetime-stat-label">Collected</span>
-                                <span class="lifetime-stat-value" id="lifetimePaid">₹0</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Daily History -->
-                <div id="dailyHistoryList" class="daily-history-list"></div>
-
-                <!-- Payment History (Hidden by default, can be toggled or shown below) -->
-                <div id="paymentHistorySection"
-                    style="padding:0 var(--content-pad); margin-top: 20px; padding-bottom: 40px;">
-                    <h3 style="font-size: 0.95rem; margin-bottom: 12px; color: #374151;">Payment History</h3>
-                    <div id="paymentHistoryList" class="payment-history-list"></div>
-                </div>
-            </div>
-        </div>
 
 
         <!-- ═══ PAGE: REPORTS ═══ -->
@@ -471,10 +370,8 @@
                     PDF
                 </button>
                 <button class="bulk-btn" id="bulkWhatsApp">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-11.7 8.38 8.38 0 0 1 3.8.9L21 3z" />
-                    </svg>
-                    Send
+                    <img src="whatsapp-icon.png" style="width:18px; height:18px;">
+                    WhatsApp
                 </button>
                 <div class="divider-v"></div>
                 <button class="bulk-btn bulk-btn-danger" id="bulkCancel">Cancel</button>

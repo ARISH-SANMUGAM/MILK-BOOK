@@ -273,11 +273,24 @@ export async function generateIndividualPDF(customer, records, options = {}) {
     doc.setFont('helvetica', 'bold');
     doc.text(`Bill Calculation: ${totalLitres.toLocaleString('en-IN', { maximumFractionDigits: 3 })} L x Rs. ${parseFloat(rate).toFixed(2)}`, 14, summaryY + 8);
 
-    doc.setTextColor(...deepBrand);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    const finalCalc = totalLitres * rate;
-    doc.text(`GRAND TOTAL: Rs. ${finalCalc.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, summaryY + 8, { align: 'right' });
+    const prevBal = parseFloat(options.prevBalance) || 0;
+    const currentTotal = totalLitres * rate;
+    const grandTotal = currentTotal + prevBal;
+
+    if (prevBal > 0) {
+        doc.setTextColor(239, 68, 68); // Red
+        doc.text(`PREVIOUS BALANCE: Rs. ${prevBal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 196, summaryY + 8, { align: 'right' });
+
+        doc.setTextColor(...deepBrand);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`GRAND TOTAL: Rs. ${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, summaryY + 16, { align: 'right' });
+    } else {
+        doc.setTextColor(...deepBrand);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`GRAND TOTAL: Rs. ${currentTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, summaryY + 8, { align: 'right' });
+    }
 
     // 6. BOTTOM SECTION: GREETING & ADDRESS (Left) / QR (Right)
     let footerY = summaryY + 18;
@@ -322,6 +335,15 @@ export async function generateIndividualPDF(customer, records, options = {}) {
         try {
             doc.addImage(paymentQr, 'PNG', qrX, qrY, qrSize, qrSize);
         } catch (e) { console.error(e); }
+    }
+
+    if (options.output === 'blob') {
+        return doc.output('blob');
+    }
+    if (options.output === 'file') {
+        const blob = doc.output('blob');
+        const filename = `${customer.name.replace(/\s+/g, '_')}_Invoice.pdf`;
+        return new File([blob], filename, { type: 'application/pdf' });
     }
 
     doc.save(`${customer.name.replace(/\s+/g, '_')}_Invoice.pdf`);

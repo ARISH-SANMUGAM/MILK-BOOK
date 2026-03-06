@@ -284,3 +284,42 @@ export async function getLifetimeStats(customerId) {
 
     return { totalLitres, totalRevenue, totalPaid };
 }
+
+// ─── Balance Aggregates ──────────────────────────────────
+/** Sum all delivery revenue and payments BEFORE a specific ISO date */
+export async function getAggregatesBeforeDate(customerId, beforeDate) {
+    let allRecords = [], allPayments = [];
+
+    if (isDemoMode()) {
+        const s = LOCAL.get();
+        allRecords = Object.values(s.records?.[customerId] || {}).filter(r => r.date < beforeDate);
+        allPayments = Object.values(s.payments?.[customerId] || {}).filter(p => {
+            const d = p.date || p.created_at || '0000-00-00';
+            return d < beforeDate;
+        });
+    } else {
+        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+
+        // 1. Records before date
+        const rQ = fs.query(
+            fs.collection(db(), 'customers', customerId, 'daily_records'),
+            fs.where('date', '<', beforeDate)
+        );
+        const rSnap = await fs.getDocs(rQ);
+        allRecords = rSnap.docs.map(d => d.data());
+
+        // 2. Payments before date - this is trickier because payments use year/month mostly
+        // but we also store 'date' in YYYY-MM-DD.
+        const pQ = fs.query(
+            fs.collection(db(), 'customers', customerId, 'payments'),
+            fs.where('date', '<', beforeDate)
+        );
+        const pSnap = await fs.getDocs(pQ);
+        allPayments = pSnap.docs.map(d => d.data());
+    }
+
+    const totalRevenue = allRecords.reduce((s, r) => s + (parseFloat(r.daily_amount) || 0), 0);
+    const totalPaid = allPayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+
+    return { totalRevenue, totalPaid, balance: totalRevenue - totalPaid };
+}
