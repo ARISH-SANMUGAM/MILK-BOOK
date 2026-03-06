@@ -1,0 +1,1008 @@
+/* =========================================================
+   MilkBook — Settings Page Styles
+   ========================================================= */
+
+/* ══════════════════════════════════════════════════════════
+   SETTINGS NAVIGATOR — sliding master-detail
+   ══════════════════════════════════════════════════════════ */
+
+/*
+  Layout model:
+    #page-settings  (block, normal flow)
+      .setnav        (overflow:hidden, clips slides)
+        .setnav-track  (flex row, slides left/right via transform)
+          .setnav-screen  (each panel, 100vw wide)
+*/
+
+/* Clip container — fills page minus nav */
+.setnav {
+    width: 100%;
+    overflow: hidden;
+    /* height is managed by the track expanding naturally */
+}
+
+/* The sliding track — one wide flex row */
+.setnav-track {
+    display: flex;
+    flex-direction: row;
+    /* No fixed width — stretches to sum of all screen widths */
+    transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+    align-items: flex-start;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+}
+
+/* Each screen panel — exactly 100vw so they sit side by side */
+.setnav-screen {
+    flex: 0 0 100vw;
+    width: 100vw;
+    min-height: 10px;
+    box-sizing: border-box;
+    background: var(--bg, #F9FAF5);
+}
+
+/* When track is shifted one panel to the left (sub-page open) */
+.setnav-track.at-sub {
+    transform: translateX(-100vw);
+}
+
+/* ── Settings Hero (home screen top) ─────────────────────── */
+.settings-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px var(--content-pad, 18px) 14px;
+    background: linear-gradient(135deg, var(--primary-deeper) 0%, var(--primary) 100%);
+    color: #fff;
+}
+
+.settings-hero-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.settings-hero-icon {
+    width: 42px;
+    height: 42px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    flex-shrink: 0;
+}
+
+.settings-hero-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    line-height: 1.2;
+}
+
+.settings-hero-sub {
+    font-size: 0.76rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 500;
+    margin-top: 2px;
+}
+
+.settings-version-chip {
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    backdrop-filter: blur(10px);
+    flex-shrink: 0;
+}
+
+/* ── App identity strip (home screen) ────────────────────── */
+.setnav-app-strip {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px var(--content-pad, 18px) 12px;
+    border-bottom: 1px solid var(--border, #E5E7EB);
+    background: #fff;
+}
+
+.setnav-app-logo {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--primary-deeper), var(--primary));
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.28);
+    flex-shrink: 0;
+}
+
+.setnav-app-name {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-primary, #111827);
+    letter-spacing: -0.2px;
+}
+
+.setnav-app-tagline {
+    font-size: 0.72rem;
+    color: var(--text-muted, #9CA3AF);
+    font-weight: 500;
+    margin-top: 2px;
+}
+
+/* ── Home list area ──────────────────────────────────────── */
+.setnav-list-content {
+    padding: 8px var(--content-pad, 18px) 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.setnav-group-label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: var(--text-muted, #9CA3AF);
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    padding: 10px 4px 4px;
+}
+
+/* ── Menu card ───────────────────────────────────────────── */
+.setnav-card {
+    background: #fff;
+    border: 1px solid var(--border, #E5E7EB);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(99, 102, 241, 0.05);
+}
+
+/* ── Menu row (tappable) ─────────────────────────────────── */
+.setnav-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.setnav-row:active {
+    background: var(--primary-light, #EEF2FF);
+}
+
+.setnav-row-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.setnav-row-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.setnav-row-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-primary, #111827);
+    line-height: 1.3;
+}
+
+.setnav-row-desc {
+    font-size: 0.72rem;
+    color: var(--text-muted, #9CA3AF);
+    margin-top: 2px;
+}
+
+.setnav-chevron {
+    font-size: 1.4rem;
+    color: var(--text-muted, #9CA3AF);
+    font-weight: 300;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+/* Separator between rows */
+.setnav-sep {
+    height: 1px;
+    background: var(--border, #E5E7EB);
+    margin: 0 16px;
+}
+
+/* ── Feature badges (home footer) ────────────────────────── */
+.setnav-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 14px 4px 4px;
+}
+
+.setnav-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: var(--primary-light, #EEF2FF);
+    color: var(--primary, #6366F1);
+    border: 1px solid #BFDBFE;
+    white-space: nowrap;
+}
+
+/* ── Sub-page panel ──────────────────────────────────────── */
+/* each .setnav-screen.setnav-sub is a panel in the track  */
+/* no positioning needed — they're just flex siblings       */
+
+/* ── Sub-page header ─────────────────────────────────────── */
+.setnav-subheader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 var(--content-pad, 18px);
+    height: 52px;
+    background: linear-gradient(135deg, var(--primary-deeper) 0%, var(--primary) 100%);
+    color: #fff;
+    position: relative;
+}
+
+.setnav-back-btn {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+    backdrop-filter: blur(8px);
+}
+
+.setnav-back-btn:hover,
+.setnav-back-btn:active {
+    background: rgba(255, 255, 255, 0.28);
+}
+
+.setnav-subheader-title {
+    flex: 1;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    text-align: center;
+    /* visually center — compensate for back button */
+    margin-right: 70px;
+}
+
+/* ── Sub-page content area ───────────────────────────────── */
+.setnav-sub-content {
+    padding: 8px var(--content-pad, 18px) 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.setnav-sub-group-label {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--text-muted, #9CA3AF);
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    padding: 10px 4px 4px;
+}
+
+/* ── Info note below a card ──────────────────────────────── */
+.setnav-info-note {
+    font-size: 0.75rem;
+    color: var(--text-muted, #9CA3AF);
+    background: #F8FAFF;
+    border: 1px solid #BFDBFE;
+    border-radius: 10px;
+    padding: 10px 14px;
+    line-height: 1.5;
+    margin-top: 4px;
+}
+
+
+/* ══════════════════════════════════════════════════════════
+   SETTINGS CARD COMPONENTS (used inside sub-pages)
+   ══════════════════════════════════════════════════════════ */
+
+.settings-card {
+    background: #fff;
+    border: 1px solid var(--border, #E5E7EB);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(99, 102, 241, 0.05);
+}
+
+.settings-card-footer {
+    padding: 12px 16px 14px;
+    border-top: 1px solid var(--border, #E5E7EB);
+    background: #FAFBFE;
+}
+
+.settings-divider {
+    height: 1px;
+    background: var(--border, #E5E7EB);
+    margin: 0 16px;
+}
+
+.settings-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+}
+
+.settings-item--top {
+    align-items: flex-start;
+    padding-bottom: 4px;
+}
+
+.settings-item-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.settings-item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.settings-item-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary, #111827);
+    line-height: 1.3;
+}
+
+.settings-item-desc {
+    font-size: 0.72rem;
+    color: var(--text-muted, #9CA3AF);
+    margin-top: 2px;
+    line-height: 1.4;
+}
+
+/* ── Rate stepper ────────────────────────────────────────── */
+.settings-rate-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.rate-step-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--primary-light, #EEF2FF);
+    border: 1.5px solid #BFDBFE;
+    color: var(--primary, #6366F1);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    line-height: 1;
+}
+
+.rate-step-btn:hover {
+    background: var(--primary, #6366F1);
+    color: #fff;
+    border-color: var(--primary, #6366F1);
+}
+
+.rate-display {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: #F8FAFF;
+    border: 1.5px solid #BFDBFE;
+    border-radius: 8px;
+    padding: 4px 8px;
+}
+
+.rate-symbol {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--primary, #6366F1);
+}
+
+.rate-input {
+    width: 44px;
+    border: none;
+    background: transparent;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--primary-deeper, #4338CA);
+    text-align: center;
+    outline: none;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.rate-input::-webkit-outer-spin-button,
+.rate-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.rate-unit {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted, #9CA3AF);
+}
+
+/* ── Settings text inputs ────────────────────────────────── */
+.settings-text-input {
+    display: block;
+    width: calc(100% - 32px);
+    margin: 0 16px 16px 16px;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    color: var(--text-primary, #111827);
+    background: var(--surface, #FFFFFF);
+    border: 1.5px solid var(--border, #E5E7EB);
+    border-radius: var(--r-sm, 12px);
+    outline: none;
+    transition: all var(--t, 0.15s);
+}
+
+.settings-text-input:focus {
+    border-color: var(--primary, #6366F1);
+    box-shadow: 0 0 0 3px var(--primary-glow, rgba(99, 102, 241, 0.35));
+}
+
+.settings-text-input::placeholder {
+    color: var(--text-muted, #9CA3AF);
+    font-weight: 400;
+}
+
+/* ── Sync status chip ────────────────────────────────────── */
+.sync-status-chip {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-muted, #9CA3AF);
+    background: var(--surface-2, #F3F4F6);
+    border: 1px solid var(--border, #E5E7EB);
+    border-radius: 20px;
+    padding: 3px 9px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ── Firebase info card ──────────────────────────────────── */
+.settings-info-card {
+    padding: 16px;
+}
+
+.settings-info-icon {
+    font-size: 1.6rem;
+    margin-bottom: 8px;
+}
+
+.settings-info-text {
+    font-size: 0.82rem;
+    color: var(--text-secondary, #6B7280);
+    line-height: 1.5;
+    margin-bottom: 10px;
+}
+
+.settings-info-text code,
+.settings-info-steps code {
+    background: #EEF2FF;
+    color: var(--primary, #6366F1);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.78rem;
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+}
+
+.settings-info-steps {
+    padding-left: 18px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.settings-info-steps li {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #6B7280);
+    line-height: 1.5;
+}
+
+/* ── Account card ────────────────────────────────────────── */
+.settings-account-card {
+    overflow: visible;
+}
+
+.settings-app-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 16px 10px;
+}
+
+.settings-app-emoji {
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(135deg, var(--primary-deeper), var(--primary));
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    flex-shrink: 0;
+}
+
+.settings-app-name {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--text-primary, #111827);
+    letter-spacing: -0.3px;
+}
+
+.settings-app-tagline {
+    font-size: 0.72rem;
+    color: var(--text-muted, #9CA3AF);
+    margin-top: 2px;
+    font-weight: 500;
+}
+
+.settings-app-badges {
+    display: flex;
+    gap: 6px;
+    padding: 0 16px 14px;
+    flex-wrap: wrap;
+}
+
+.settings-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: var(--primary-light, #EEF2FF);
+    color: var(--primary, #6366F1);
+    border: 1px solid #BFDBFE;
+    white-space: nowrap;
+}
+
+
+/* ══════════════════════════════════════════════════════════
+   SECURITY — Toggle Switch
+   ══════════════════════════════════════════════════════════ */
+.pin-toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 46px;
+    height: 26px;
+    flex-shrink: 0;
+}
+
+.pin-toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.pin-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: #D1D5DB;
+    border-radius: 26px;
+    transition: background 0.22s;
+    cursor: pointer;
+}
+
+.pin-toggle-slider::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.pin-toggle-switch input:checked+.pin-toggle-slider {
+    background: var(--primary, #6366F1);
+}
+
+.pin-toggle-switch input:checked+.pin-toggle-slider::after {
+    transform: translateX(20px);
+}
+
+/* ── PIN Setup Area ──────────────────────────────────────── */
+.pin-setup-area {
+    padding: 20px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+}
+
+.pin-dots {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 10px;
+}
+
+.pin-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2.5px solid var(--border, #E5E7EB);
+    background: transparent;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.pin-dot.filled {
+    background: var(--primary, #6366F1);
+    border-color: var(--primary, #6366F1);
+    transform: scale(1.12);
+}
+
+.pin-dot.error {
+    background: #DC2626;
+    border-color: #DC2626;
+    animation: shake 0.4s ease;
+}
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20% {
+        transform: translateX(-5px);
+    }
+
+    60% {
+        transform: translateX(5px);
+    }
+}
+
+.pin-hint {
+    font-size: 0.78rem;
+    color: var(--text-muted, #9CA3AF);
+    font-weight: 500;
+    margin-bottom: 18px;
+    text-align: center;
+}
+
+.pin-hint.success {
+    color: #10B981;
+    font-weight: 700;
+}
+
+.pin-hint.danger {
+    color: #DC2626;
+    font-weight: 700;
+}
+
+/* ── PIN Numpad ──────────────────────────────────────────── */
+.pin-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 220px;
+    margin-bottom: 4px;
+}
+
+.pin-key {
+    height: 58px;
+    border-radius: 14px;
+    border: 1.5px solid var(--border, #E5E7EB);
+    background: #F8FAFF;
+    color: var(--text-primary, #111827);
+    font-size: 1.35rem;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+    cursor: pointer;
+    transition: background 0.12s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.pin-key:active {
+    background: var(--primary, #6366F1);
+    color: #fff;
+    transform: scale(0.93);
+    border-color: var(--primary, #6366F1);
+}
+
+.pin-key--blank {
+    background: transparent;
+    border-color: transparent;
+    cursor: default;
+    pointer-events: none;
+}
+
+.pin-key--del {
+    background: #FFF1F2;
+    color: #BE123C;
+    border-color: #FECDD3;
+    font-size: 1.1rem;
+}
+
+.pin-key--del:active {
+    background: #BE123C;
+    color: #fff;
+    border-color: #BE123C;
+}
+
+/* ── btn-outline (used in security) ─────────────────────── */
+.btn-outline {
+    background: transparent;
+    border: 1.5px solid var(--border, #E5E7EB);
+    color: var(--text-secondary, #6B7280);
+    font-weight: 600;
+}
+
+.btn-outline:hover {
+    background: var(--surface-2, #F3F4F6);
+}
+
+
+/* ══════════════════════════════════════════════════════════
+   APPEARANCE — Theme Swatches
+   ══════════════════════════════════════════════════════════ */
+.theme-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border, #E5E7EB);
+    overflow: hidden;
+}
+
+.theme-swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 8px;
+    background: #fff;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.14s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.theme-swatch:active {
+    background: #F9FAFB;
+}
+
+.theme-swatch-preview {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: transform 0.15s;
+}
+
+.theme-swatch:hover .theme-swatch-preview,
+.theme-swatch.active .theme-swatch-preview {
+    transform: scale(1.07);
+}
+
+.theme-swatch-name {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-secondary, #6B7280);
+    text-align: center;
+    line-height: 1.2;
+}
+
+.theme-swatch.active .theme-swatch-name {
+    color: var(--primary, #6366F1);
+}
+
+.theme-swatch-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary, #6366F1);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity 0.18s, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.theme-swatch.active .theme-swatch-check {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* ── Theme preview bar ───────────────────────────────────── */
+.theme-preview-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    overflow: hidden;
+}
+
+.theme-preview-bar {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--primary-deeper), var(--primary));
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    flex-shrink: 0;
+    transition: background 0.3s;
+}
+
+.theme-preview-body {
+    flex: 1;
+}
+
+.theme-preview-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-primary, #111827);
+}
+
+.theme-preview-sub {
+    font-size: 0.72rem;
+    color: var(--text-muted, #9CA3AF);
+    margin-top: 2px;
+}
+
+
+/* ══════════════════════════════════════════════════════════
+   ADMIN MANAGEMENT — List
+   ══════════════════════════════════════════════════════════ */
+.admin-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border, #E5E7EB);
+}
+
+.admin-item:last-child {
+    border-bottom: none;
+}
+
+.admin-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-deeper), var(--primary));
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-family: 'Outfit', sans-serif;
+}
+
+.admin-item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.admin-item-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary, #111827);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-item-email {
+    font-size: 0.72rem;
+    color: var(--text-muted, #9CA3AF);
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-role-chip {
+    font-size: 0.62rem;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.admin-role-chip--primary {
+    background: #EEF2FF;
+    color: #6366F1;
+    border: 1px solid #BFDBFE;
+}
+
+.admin-role-chip--secondary {
+    background: #FFF7ED;
+    color: #C2410C;
+    border: 1px solid #FED7AA;
+}
+
+.admin-remove-btn {
+    background: #FFF1F2;
+    border: 1px solid #FECDD3;
+    color: #BE123C;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+
+.admin-remove-btn:hover {
+    background: #BE123C;
+    color: #fff;
+}

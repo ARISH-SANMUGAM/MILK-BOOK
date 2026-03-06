@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>MilkBook — Delivery & Billing</title>
+    <meta name="description" content="Manage your milk delivery routes, track daily entries and generate invoices." />
+    <meta name="theme-color" content="#6366F1" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="index.css" />
+    <link rel="stylesheet" href="settings-styles.css" />
+    <!-- CropperJS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    <!-- Google Sync -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+</head>
+
+<body>
+
+    <!-- ███ GLOBAL LOADER ███ -->
+    <div class="global-loader" id="globalLoader">
+        <div class="loader-icon"></div>
+        <div class="loader-text">🥛 MilkBook</div>
+    </div>
+
+    <!-- ███ APP ROOT ███ -->
+    <div id="app" class="hidden">
+
+
+        <!-- ═══ PAGE: ADMIN DASHBOARD ═══ -->
+        <div id="page-dashboard" class="page page-with-nav hidden">
+            <div class="app-header">
+                <div class="header-left">
+                    <div class="header-logo">🥛</div>
+                    <div>
+                        <div class="header-title">MilkBook</div>
+                        <div class="header-date" id="todayDateLabel"></div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="icon-btn icon-btn--brand" id="addCustomerHeaderBtn" title="Add Customer">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dashboard Hero with Stats -->
+            <div class="dashboard-hero">
+                <div class="hero-top-row">
+                    <div class="hero-greeting">Good morning 👋</div>
+                    <div class="hero-session-toggle" id="dashSessionToggle">
+                        <button class="session-btn active" data-session="m">Morning</button>
+                        <button class="session-btn" data-session="e">Evening</button>
+                    </div>
+                </div>
+
+                <div class="hero-date-row">
+                    <button class="hero-date-arrow" id="dashPrevDay">‹</button>
+                    <div class="hero-date-text" id="dashHeroDate">Today's Overview</div>
+                    <button class="hero-date-arrow" id="dashNextDay">›</button>
+                </div>
+
+                <div class="stats-bar">
+                    <div class="stat-chip">
+                        <span class="stat-value" id="statTotal">0</span>
+                        <div class="stat-label">Total</div>
+                    </div>
+                    <div class="stat-chip">
+                        <span class="stat-value" id="statEntered">0</span>
+                        <div class="stat-label">Entered</div>
+                    </div>
+                    <div class="stat-chip">
+                        <span class="stat-value" id="statPending">0</span>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Linear Header with Title & Search -->
+            <div class="section-header section-header--with-search">
+                <div class="section-title">Customers</div>
+                <div id="dashSearchBar" class="dashboard-search-inline">
+                    <div class="search-inner">
+                        <span class="search-icon">🔍</span>
+                        <input class="search-input" type="search" id="customerSearch" placeholder="Search…" />
+                    </div>
+                </div>
+            </div>
+            <div id="customerListContainer" class="customer-list"></div>
+
+            <!-- FAB moved to header to prevent overlapping entries -->
+
+            <!-- Bottom Nav -->
+            <nav class="bottom-nav">
+                <button class="nav-item active" id="navDashboard">
+                    <span class="nav-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg></span>
+                    <span class="nav-label">Dashboard</span>
+                </button>
+                <button class="nav-item" id="navReports">
+                    <span class="nav-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg></span>
+                    <span class="nav-label">Reports</span>
+                </button>
+                <button class="nav-item" id="navSettings">
+                    <span class="nav-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg></span>
+                    <span class="nav-label">Settings</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- ═══ PAGE: DATA ENTRY ═══ -->
+        <div id="page-entry" class="page page-with-nav hidden">
+            <div class="app-header header--dark">
+                <div class="header-left">
+                    <button class="back-icon-btn" id="entryBackBtn">‹</button>
+                    <div>
+                        <div class="header-title" id="entryCustomerName">Entry</div>
+                        <div class="header-date" id="entryCustomerPhone"></div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <div class="nav-date-wrap">
+                        <button class="nav-date-arrow" id="entryPrevDay">‹</button>
+                        <div class="nav-date-text" id="entryDateDisplay">Feb 20</div>
+                        <button class="nav-date-arrow" id="entryNextDay">›</button>
+                    </div>
+                    <button class="navbar-cal-btn" id="entryCalendarBtn">📅</button>
+                    <input type="date" id="entryDatePicker"
+                        style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" />
+                </div>
+            </div>
+
+
+
+
+
+            <div class="entry-content">
+                <div class="unified-card">
+                    <!-- Amount Header -->
+                    <div class="live-total-card" id="liveTotalCard">
+                        <div class="live-total-icon">💰</div>
+                        <div class="live-total-info">
+                            <div class="live-total-label">Today's Amount</div>
+                            <div class="live-total-amount" id="liveTotalAmount">₹0.00</div>
+                            <div class="live-rate-box" id="rateInfoChip">Rate: ₹0/L</div>
+                        </div>
+                        <div class="live-total-litres">
+                            <div class="live-litres-value" id="liveTotalLitres">0 L</div>
+                            <div class="live-litres-label">Total Litres</div>
+                        </div>
+                    </div>
+
+                    <div class="unified-card-body">
+                        <!-- Morning -->
+                        <div id="morningEntryCardContainer">
+                            <div class="entry-session-header">
+                                <div class="entry-card-title">🌅 Morning</div>
+                                <div class="entry-session-pill pill--mini" id="entrySessionToggleM">
+                                    <button class="pill-btn active" data-session="m">MORNING</button>
+                                    <button class="pill-btn" data-session="e">EVENING</button>
+                                </div>
+                            </div>
+                            <div class="qty-input-group">
+                                <button class="qty-btn" data-field="morning" data-op="minus">−</button>
+                                <div class="qty-input-wrap">
+                                    <input type="number" class="qty-input" id="morningQty" min="0" max="20" step="0.25"
+                                        value="0" />
+                                    <span class="qty-unit">L</span>
+                                </div>
+                                <button class="qty-btn" data-field="morning" data-op="plus">+</button>
+                            </div>
+                            <div class="collection-toggle-row">
+                                <span class="collection-toggle-text">🏠 Customer collected?</span>
+                                <label class="toggle-label">
+                                    <input type="checkbox" id="morningCollected" checked />
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Evening -->
+                        <div id="eveningEntryCardContainer">
+                            <div class="entry-session-header">
+                                <div class="entry-card-title">🌙 Evening</div>
+                                <div class="entry-session-pill pill--mini" id="entrySessionToggleE">
+                                    <button class="pill-btn active" data-session="m">MORNING</button>
+                                    <button class="pill-btn" data-session="e">EVENING</button>
+                                </div>
+                            </div>
+                            <div class="qty-input-group">
+                                <button class="qty-btn" data-field="evening" data-op="minus">−</button>
+                                <div class="qty-input-wrap">
+                                    <input type="number" class="qty-input" id="eveningQty" min="0" max="20" step="0.25"
+                                        value="0" />
+                                    <span class="qty-unit">L</span>
+                                </div>
+                                <button class="qty-btn" data-field="evening" data-op="plus">+</button>
+                            </div>
+                            <div class="collection-toggle-row">
+                                <span class="collection-toggle-text">🏠 Customer collected?</span>
+                                <label class="toggle-label">
+                                    <input type="checkbox" id="eveningCollected" checked />
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Status & Action -->
+                        <div class="unified-card-footer">
+                            <div class="autosave-status-wrap">
+                                <span class="autosave-status autosave-status--idle" id="autosaveStatus">⏺ Saved</span>
+                            </div>
+                            <button class="btn btn-primary btn-full save-entry-btn" id="saveEntryBtn">
+                                💾 Save Entry
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Purchase Report Card -->
+                <div class="entry-history-card">
+                    <div class="history-header-bar">
+                        <h3 class="history-title">📊 Purchase Report</h3>
+                        <div class="history-period-pill" id="historyPeriodToggle">
+                            <button class="history-period-btn active" data-period="week">WEEKLY</button>
+                            <button class="history-period-btn" data-period="month">MONTHLY</button>
+                        </div>
+                    </div>
+
+                    <div class="history-card-body">
+                        <div id="entryHistoryList" class="history-list">
+                            <!-- History items will be rendered here -->
+                            <div class="history-placeholder">Loading records...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ PAGE: CUSTOMER VIEW ═══ -->
+        <div id="page-customer" class="page page-with-nav hidden">
+
+            <!-- Header -->
+            <div class="app-header">
+                <div class="header-left">
+                    <button class="back-icon-btn" id="customerBackBtn">‹</button>
+                    <div>
+                        <div class="header-title" id="customerViewName">Customer</div>
+                        <div class="header-date" id="customerViewSub"></div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="icon-btn" id="customerCalendarBtn" title="Select Month">📅</button>
+                    <input type="month" id="customerMonthPicker" style="display:none;" />
+                    <button class="icon-btn" id="editCustomerBtn" title="Edit">Edit</button>
+                </div>
+            </div>
+
+            <!-- Compact hero: avatar + name + primary CTA side by side -->
+            <div class="cust-view-hero">
+                <div class="cust-view-hero-left">
+                    <div class="customer-hero-avatar" id="customerHeroAvatar"
+                        style="width:52px;height:52px;font-size:1.4rem;">—</div>
+                    <div>
+                        <div class="customer-hero-name" style="font-size:1.1rem;" id="customerHeroName">—</div>
+                        <div class="customer-hero-phone" style="font-size:0.8rem;" id="customerHeroPhone">—</div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="addEntryBtn"
+                    style="padding:10px 20px;font-size:0.9rem;white-space:nowrap;">
+                    + Add Entry
+                </button>
+            </div>
+
+            <!-- Pay Status Banner -->
+            <div style="padding:0 var(--content-pad);">
+                <div class="pay-status-banner pay-status-banner--due" id="payStatusBanner">
+                    <div class="pay-status-text pay-status-text--due" id="payStatusText">Outstanding Balance</div>
+                    <div class="pay-status-amount" id="payStatusAmount">₹0.00</div>
+                </div>
+            </div>
+
+            <!-- Month Selector -->
+            <div class="month-selector">
+                <button class="date-arrow" id="prevMonth">‹</button>
+                <div class="month-display" id="monthDisplay">—</div>
+                <button class="date-arrow" id="nextMonth">›</button>
+            </div>
+
+            <!-- Summary — compact 2-col grid -->
+            <div style="padding:0 var(--content-pad);">
+                <div class="summary-grid">
+                    <div class="summary-card summary-card--blue">
+                        <div class="summary-card-label">Litres</div>
+                        <div class="summary-card-value" id="summLitres">0 L</div>
+                    </div>
+                    <div class="summary-card summary-card--amber">
+                        <div class="summary-card-label">Bill</div>
+                        <div class="summary-card-value" id="summBill">₹0</div>
+                    </div>
+                    <div class="summary-card summary-card--green">
+                        <div class="summary-card-label">Days</div>
+                        <div class="summary-card-value" id="summDays">0</div>
+                    </div>
+                    <div class="summary-card summary-card--red">
+                        <div class="summary-card-label">Due</div>
+                        <div class="summary-card-value" id="summOutstanding">₹0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Secondary actions: condensed toolbar -->
+            <div class="cust-action-toolbar">
+                <button class="cust-tool-btn" id="recordPaymentBtn">
+                    <span class="cust-tool-icon">₹</span>
+                    <span>Payment</span>
+                </button>
+                <button class="cust-tool-btn" id="printInvoiceBtn">
+                    <span class="cust-tool-icon">⎙</span>
+                    <span>Invoice</span>
+                </button>
+                <button class="cust-tool-btn" id="downloadCsvBtn">
+                    <span class="cust-tool-icon">↓</span>
+                    <span>CSV</span>
+                </button>
+                <button class="cust-tool-btn" id="openReportSendBtn">
+                    <span class="cust-tool-icon">⎈</span>
+                    <span>Report</span>
+                </button>
+            </div>
+
+            <!-- Daily History -->
+            <div style="padding:0 var(--content-pad) 8px;">
+                <div class="section-title" style="margin-bottom:10px;">Daily Records</div>
+                <!-- Lifetime Stats -->
+                <div style="padding:0 var(--content-pad); margin-top: 15px;">
+                    <div class="lifetime-stats-card">
+                        <div class="lifetime-stats-title">Lifetime Summary</div>
+                        <div class="lifetime-stats-grid">
+                            <div class="lifetime-stat-item">
+                                <span class="lifetime-stat-label">Total Qty</span>
+                                <span class="lifetime-stat-value" id="lifetimeLitres">0L</span>
+                            </div>
+                            <div class="lifetime-stat-item">
+                                <span class="lifetime-stat-label">Revenue</span>
+                                <span class="lifetime-stat-value" id="lifetimeRevenue">₹0</span>
+                            </div>
+                            <div class="lifetime-stat-item">
+                                <span class="lifetime-stat-label">Collected</span>
+                                <span class="lifetime-stat-value" id="lifetimePaid">₹0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Daily History -->
+                <div id="dailyHistoryList" class="daily-history-list"></div>
+
+                <!-- Payment History (Hidden by default, can be toggled or shown below) -->
+                <div id="paymentHistorySection"
+                    style="padding:0 var(--content-pad); margin-top: 20px; padding-bottom: 40px;">
+                    <h3 style="font-size: 0.95rem; margin-bottom: 12px; color: #374151;">Payment History</h3>
+                    <div id="paymentHistoryList" class="payment-history-list"></div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ═══ PAGE: REPORTS ═══ -->
+        <div id="page-reports" class="page page-with-nav hidden">
+            <div class="app-header">
+                <div class="header-left">
+                    <div class="header-logo">🥛</div>
+                    <div>
+                        <div class="header-title">Reports</div>
+                    </div>
+                </div>
+
+                <div class="header-center-nav">
+                    <button class="header-nav-arrow" id="reportPrevMonth">‹</button>
+                    <div class="header-nav-month" id="reportMonthDisplay">—</div>
+                    <button class="header-nav-arrow" id="reportNextMonth">›</button>
+                </div>
+
+                <div class="header-actions">
+                    <button class="icon-btn" id="reportCalendarMainBtn" title="Select Month">📅</button>
+                    <input type="month" id="reportMonthPicker" style="display:none;" />
+                </div>
+            </div>
+
+            <div class="report-hero">
+                <div class="report-hero-header">
+                    <div class="report-hero-title" id="reportHeroTitle">Monthly Summary</div>
+                    <div class="report-period-pill" id="reportPeriodToggle">
+                        <button class="report-period-btn" data-period="daily">Daily</button>
+                        <button class="report-period-btn" data-period="week">Weekly</button>
+                        <button class="report-period-btn active" data-period="month">Monthly</button>
+                        <button class="report-period-btn" data-period="year">Yearly</button>
+                    </div>
+                </div>
+
+                <!-- Custom Range Picker (Hidden by default) -->
+                <div id="reportCustomRangeBar" class="report-date-selector"
+                    style="display:none; padding: 10px 0; gap: 8px;">
+                    <input type="date" id="reportDateStart" class="text-input"
+                        style="padding: 6px; font-size: 0.75rem;">
+                    <span style="color: #fff; font-size: 0.8rem;">to</span>
+                    <input type="date" id="reportDateEnd" class="text-input" style="padding: 6px; font-size: 0.75rem;">
+                </div>
+
+                <div class="report-summary-bar">
+                    <div class="report-stat">
+                        <span class="report-stat-value" id="reportTotalLitres">0</span>
+                        <div class="report-stat-label">Total Litres</div>
+                    </div>
+                    <div class="report-stat">
+                        <span class="report-stat-value" id="reportTotalRevenue">₹0</span>
+                        <div class="report-stat-label">Revenue</div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="report-list-controls">
+                <label class="select-all-wrap">
+                    <input type="checkbox" id="reportSelectAll">
+                    <span>Select All Customers</span>
+                </label>
+                <div id="selectionStatus" class="selection-status">0 Selected</div>
+            </div>
+
+            <div id="reportCustomerList" class="report-customer-list"></div>
+
+            <!-- Bulk Actions Bar -->
+            <div id="bulkActionsBar" class="bulk-actions-bar" style="display: none;">
+                <button class="bulk-btn" id="bulkGeneratePdf">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <polyline points="10 9 9 9 8 9" />
+                    </svg>
+                    PDF
+                </button>
+                <button class="bulk-btn" id="bulkWhatsApp">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-11.7 8.38 8.38 0 0 1 3.8.9L21 3z" />
+                    </svg>
+                    Send
+                </button>
+                <div class="divider-v"></div>
+                <button class="bulk-btn bulk-btn-danger" id="bulkCancel">Cancel</button>
+            </div>
+
+            <!-- Removed report action buttons -->
+
+            <nav class="bottom-nav">
+                <button class="nav-item" id="navDashboard2">
+                    <span class="nav-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg></span>
+                    <span class="nav-label">Dashboard</span>
+                </button>
+                <button class="nav-item active" id="navReports2">
+                    <span class="nav-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg></span>
+                    <span class="nav-label">Reports</span>
+                </button>
+                <button class="nav-item" id="navSettings2">
+                    <span class="nav-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg></span>
+                    <span class="nav-label">Settings</span>
+                </button>
+            </nav>
+        </div>
+        <!-- ═══ PAGE: SETTINGS ═══ -->
+        <div id="page-settings" class="page page-with-nav hidden">
+
+            <!-- ══ SETTINGS NAVIGATOR (wraps home + all sub-pages) ══ -->
+            <div class="setnav" id="settingsNav">
+                <div class="setnav-track" id="setnavTrack">
+
+                    <!-- ── HOME SCREEN ── -->
+                    <div class="setnav-screen" id="setnav-home">
+                        <!-- Hero -->
+                        <div class="settings-hero">
+                            <div class="settings-hero-left">
+                                <div class="settings-hero-icon">⚙️</div>
+                                <div>
+                                    <div class="settings-hero-title">Settings</div>
+                                    <div class="settings-hero-sub">Tap a section to configure</div>
+                                </div>
+                            </div>
+                            <div class="settings-version-chip">v2.0</div>
+                        </div>
+
+                        <!-- App identity strip -->
+                        <div class="setnav-app-strip">
+                            <div class="setnav-app-logo">🥛</div>
+                            <div>
+                                <div class="setnav-app-name">MilkBook</div>
+                                <div class="setnav-app-tagline">Professional Dairy Management</div>
+                            </div>
+                        </div>
+
+                        <!-- Menu list -->
+                        <div class="setnav-list-content">
+
+                            <!-- Group 1 -->
+                            <div class="setnav-group-label">General</div>
+                            <div class="setnav-card">
+                                <button class="setnav-row" data-target="setnav-pricing">
+                                    <div class="setnav-row-icon" style="background:#EEF2FF;color:#6366F1;">₹</div>
+                                    <div class="setnav-row-body">
+                                        <div class="setnav-row-title">Pricing</div>
+                                        <div class="setnav-row-desc">Milk rate per litre</div>
+                                    </div>
+                                    <span class="setnav-chevron">›</span>
+                                </button>
+                                <div class="setnav-sep"></div>
+                                <button class="setnav-row" data-target="setnav-business">
+                                    <div class="setnav-row-icon" style="background:#FFF7ED;color:#C2410C;">🏪</div>
+                                    <div class="setnav-row-body">
+                                        <div class="setnav-row-title">Business Info</div>
+                                        <div class="setnav-row-desc">Name, UPI &amp; invoices</div>
+                                    </div>
+                                    <span class="setnav-chevron">›</span>
+                                </button>
+                            </div>
+
+                            <!-- Group 2 -->
+                            <div class="setnav-group-label">Data &amp; Security</div>
+                            <div class="setnav-card">
+                                <button class="setnav-row" data-target="setnav-sync">
+                                    <div class="setnav-row-icon" style="background:#F0F9FF;color:#0369A1;">☁️</div>
+                                    <div class="setnav-row-body">
+                                        <div class="setnav-row-title">Backup &amp; Sync</div>
+                                        <div class="setnav-row-desc">Google Drive cloud backup</div>
+                                    </div>
+                                    <span class="setnav-chevron">›</span>
+                                </button>
+                                <div class="setnav-sep"></div>
+                                <button class="setnav-row" data-target="setnav-firebase">
+                                    <div class="setnav-row-icon" style="background:#FFF7ED;color:#EA580C;">🔥</div>
+                                    <div class="setnav-row-body">
+                                        <div class="setnav-row-title">Firebase Setup</div>
+                                        <div class="setnav-row-desc">Database configuration</div>
+                                    </div>
+                                    <span class="setnav-chevron">›</span>
+                                </button>
+                            </div>
+
+                            <!-- Group 3 -->
+                            <div class="setnav-group-label">Account &amp; Personalisation</div>
+                            <div class="setnav-card">
+                                <button class="setnav-row" data-target="setnav-account">
+                                    <div class="setnav-row-icon" style="background:#F5F3FF;color:#7C3AED;">👤</div>
+                                    <div class="setnav-row-body">
+                                        <div class="setnav-row-title">Account &amp; About</div>
+                                        <div class="setnav-row-desc">App info &amp; sign out</div>
+                                    </div>
+                                    <span class="setnav-chevron">›</span>
+                                </button>
+                                <div class="setnav-sep"></div>
+                                <button class="setnav-row" data-target="setnav-security">
+                                    <div class="setnav-row-icon" style="background:#FFF1F2;color:#BE123C;">🔒</div>
+                                    <div class="setnav-row-body">
+                                        <div class="setnav-row-title">Security &amp; PIN Lock</div>
+                                        <div class="setnav-row-desc" id="securityRowDesc">App lock disabled</div>
+                                    </div>
+                                    <span class="setnav-chevron">›</span>
+                                </button>
+                                <div class="setnav-sep"></div>
+                                <button class="setnav-row" data-target="setnav-appearance">
+                                    <div class="setnav-row-icon" style="background:#F0FDF4;color:#15803D;">🎨</div>
+                                    <div class="setnav-row-body">
+                                        <div class="setnav-row-title">Appearance</div>
+                                        <div class="setnav-row-desc" id="themeRowDesc">Royal Blue theme</div>
+                                    </div>
+                                    <span class="setnav-chevron">›</span>
+                                </button>
+                                <div class="setnav-sep"></div>
+                                <button class="setnav-row" data-target="setnav-admins">
+                                    <div class="setnav-row-icon" style="background:#FFFBEB;color:#B45309;">👥</div>
+                                    <div class="setnav-row-body">
+                                        <div class="setnav-row-title">Admin Management</div>
+                                        <div class="setnav-row-desc" id="adminRowDesc">1 admin account</div>
+                                    </div>
+                                    <span class="setnav-chevron">›</span>
+                                </button>
+                            </div>
+
+                            <!-- Badges -->
+                            <div class="setnav-badges">
+                                <span class="setnav-badge">📶 Offline-ready</span>
+                                <span class="setnav-badge">🔥 Firebase</span>
+                                <span class="setnav-badge">📱 Mobile-first</span>
+                            </div>
+
+                        </div>
+                    </div><!-- /setnav-home -->
+
+                    <!-- ── SUB: PRICING ── -->
+                    <div class="setnav-screen setnav-sub" id="setnav-pricing">
+                        <div class="setnav-subheader">
+                            <button class="setnav-back-btn" data-back="setnav-home">‹ Settings</button>
+                            <div class="setnav-subheader-title">Pricing</div>
+                        </div>
+                        <div class="setnav-sub-content">
+                            <div class="setnav-sub-group-label">MILK RATE</div>
+                            <div class="settings-card">
+                                <div class="settings-item">
+                                    <div class="settings-item-icon" style="background:#EEF2FF;color:#6366F1;">₹</div>
+                                    <div class="settings-item-body">
+                                        <div class="settings-item-title">Price Per Litre</div>
+                                        <div class="settings-item-desc">Applied to all new daily entries</div>
+                                    </div>
+                                    <div class="settings-rate-control">
+                                        <button class="rate-step-btn" id="rateDecBtn">−</button>
+                                        <div class="rate-display">
+                                            <span class="rate-symbol">₹</span>
+                                            <input type="number" class="rate-input" id="rateInput" min="1" max="500"
+                                                step="1" value="60" />
+                                            <span class="rate-unit">/L</span>
+                                        </div>
+                                        <button class="rate-step-btn" id="rateIncBtn">+</button>
+                                    </div>
+                                </div>
+                                <div class="settings-card-footer">
+                                    <button class="btn btn-primary btn-full" id="saveRateBtn">💾 Save Rate</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── SUB: BUSINESS INFO ── -->
+                    <div class="setnav-screen setnav-sub" id="setnav-business">
+                        <div class="setnav-subheader">
+                            <button class="setnav-back-btn" data-back="setnav-home">‹ Settings</button>
+                            <div class="setnav-subheader-title">Business Info</div>
+                        </div>
+                        <div class="setnav-sub-content">
+                            <div class="setnav-sub-group-label">IDENTITY</div>
+                            <div class="settings-card">
+                                <div class="settings-item settings-item--top">
+                                    <div class="settings-item-icon" style="background:#FFF7ED;color:#C2410C;">🏪</div>
+                                    <div class="settings-item-body">
+                                        <div class="settings-item-title">Business Name</div>
+                                        <div class="settings-item-desc">Shown on shared reports &amp; invoices</div>
+                                    </div>
+                                </div>
+                                <input type="text" class="settings-text-input" id="businessNameInput"
+                                    placeholder="e.g. Ramu Dairy Farm" />
+                                <div class="settings-divider"></div>
+                                <div class="settings-item settings-item--top">
+                                    <div class="settings-item-icon" style="background:#F0FDF4;color:#15803D;">📍</div>
+                                    <div class="settings-item-body">
+                                        <div class="settings-item-title">Business Address</div>
+                                        <div class="settings-item-desc">Contact info shown on invoices</div>
+                                    </div>
+                                </div>
+                                <textarea class="settings-text-input" id="addressInput" rows="2"
+                                    placeholder="e.g. 123 Main St, Phone: +91 9876543210"></textarea>
+                                <div class="settings-divider"></div>
+                                <div class="settings-item settings-item--top">
+                                    <div class="settings-item-icon" style="background:#EEF2FF;color:#4F46E5;">🖼️</div>
+                                    <div class="settings-item-body">
+                                        <div class="settings-item-title">Payment QR Code</div>
+                                        <div class="settings-item-desc">Upload your UPI QR code for invoices</div>
+                                    </div>
+                                </div>
+                                <div class="qr-setup-area">
+                                    <input type="file" id="qrFileInput" class="hidden" accept="image/*" />
+                                    <div class="qr-preview-box" id="qrPreview">
+                                        <div class="qr-placeholder">
+                                            <span>No QR selected</span>
+                                            <button class="qr-upload-trigger" id="qrUploadBtn">Upload QR</button>
+                                        </div>
+                                    </div>
+                                    <button class="qr-remove-btn hidden" id="qrRemoveBtn">Remove QR</button>
+                                </div>
+                                <div class="settings-card-footer">
+                                    <button class="btn btn-primary btn-full" id="saveBusinessBtn">💾 Save Info</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── SUB: BACKUP & SYNC ── -->
+                    <div class="setnav-screen setnav-sub" id="setnav-sync">
+                        <div class="setnav-subheader">
+                            <button class="setnav-back-btn" data-back="setnav-home">‹ Settings</button>
+                            <div class="setnav-subheader-title">Backup &amp; Sync</div>
+                        </div>
+                        <div class="setnav-sub-content">
+                            <div class="setnav-sub-group-label">GOOGLE DRIVE</div>
+                            <div class="settings-card">
+                                <div class="settings-item">
+                                    <div class="settings-item-icon" style="background:#F0F9FF;color:#0369A1;">☁️</div>
+                                    <div class="settings-item-body">
+                                        <div class="settings-item-title">Google Drive Sync</div>
+                                        <div class="settings-item-desc">Automatically keep your data safe in the cloud
+                                        </div>
+                                    </div>
+                                    <div id="syncStatus" class="sync-status-chip">Never</div>
+                                </div>
+                                <div class="settings-card-footer">
+                                    <button class="btn btn-primary btn-full" id="syncDriveBtn">☁️ Sync to Google
+                                        Drive</button>
+                                </div>
+                            </div>
+                            <div class="setnav-info-note">
+                                💡 Your data is backed up to Google Drive. You can restore it anytime by signing in with
+                                the
+                                same Google account.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── SUB: FIREBASE ── -->
+                    <div class="setnav-screen setnav-sub" id="setnav-firebase">
+                        <div class="setnav-subheader">
+                            <button class="setnav-back-btn" data-back="setnav-home">‹ Settings</button>
+                            <div class="setnav-subheader-title">Firebase Setup</div>
+                        </div>
+                        <div class="setnav-sub-content">
+                            <div class="setnav-sub-group-label" style="margin-top:14px;">CLOUD SYNC</div>
+                            <div class="settings-card">
+                                <div class="settings-item">
+                                    <div class="settings-item-icon" style="background:#FFF7ED;color:#EA580C;">⬆️</div>
+                                    <div class="settings-item-body">
+                                        <div class="settings-item-title">Manual Data Push</div>
+                                        <div class="settings-item-desc">Push all members from your device to Firebase
+                                            Cloud</div>
+                                    </div>
+                                </div>
+                                <div class="settings-card-footer">
+                                    <button class="btn btn-primary btn-full" id="manualPushBtn">🚀 Push to Firestore
+                                        Now</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── SUB: ACCOUNT ── -->
+                    <div class="setnav-screen setnav-sub" id="setnav-account">
+                        <div class="setnav-subheader">
+                            <button class="setnav-back-btn" data-back="setnav-home">‹ Settings</button>
+                            <div class="setnav-subheader-title">Account</div>
+                        </div>
+                        <div class="setnav-sub-content">
+                            <div class="setnav-sub-group-label">APP</div>
+                            <div class="settings-card settings-account-card">
+                                <div class="settings-app-brand">
+                                    <span class="settings-app-emoji">🥛</span>
+                                    <div>
+                                        <div class="settings-app-name">MilkBook</div>
+                                        <div class="settings-app-tagline">Professional Dairy Management · v2.0</div>
+                                    </div>
+                                </div>
+                                <div class="settings-app-badges">
+                                    <span class="settings-badge">📶 Offline-ready</span>
+                                    <span class="settings-badge">🔥 Firebase</span>
+                                    <span class="settings-badge">📱 Mobile-first</span>
+                                </div>
+                            </div>
+
+                            <!-- Quick-access shortcuts into sub-features -->
+                            <div class="setnav-sub-group-label" style="margin-top:14px;">QUICK ACCESS</div>
+                            <div class="setnav-card">
+                                <button class="setnav-row" data-target="setnav-security">
+                                    <div class="setnav-row-icon" style="background:#FFF1F2;color:#BE123C;">🔒</div>
+                                    <div class="setnav-row-body">
+                                        <div class="setnav-row-title">Security &amp; PIN Lock</div>
+                                        <div class="setnav-row-desc">Protect the app with a PIN</div>
+                                    </div>
+                                    <span class="setnav-chevron">›</span>
+                                </button>
+                                <div class="setnav-sep"></div>
+                                <button class="setnav-row" data-target="setnav-appearance">
+                                    <div class="setnav-row-icon" style="background:#F0FDF4;color:#15803D;">🎨</div>
+                                    <div class="setnav-row-body">
+                                        <div class="setnav-row-title">Appearance</div>
+                                        <div class="setnav-row-desc">Theme &amp; colour settings</div>
+                                    </div>
+                                    <span class="setnav-chevron">›</span>
+                                </button>
+                                <div class="setnav-sep"></div>
+                                <button class="setnav-row" data-target="setnav-admins">
+                                    <div class="setnav-row-icon" style="background:#FFFBEB;color:#B45309;">👥</div>
+                                    <div class="setnav-row-body">
+                                        <div class="setnav-row-title">Admin Management</div>
+                                        <div class="setnav-row-desc">Manage admin accounts</div>
+                                    </div>
+                                    <span class="setnav-chevron">›</span>
+                                </button>
+                            </div>
+
+                            <div class="setnav-sub-group-label" style="margin-top:14px;">DANGER ZONE</div>
+                            <div class="settings-card">
+                                <div class="settings-card-footer" style="border-top:none;">
+                                    <!-- <button class="btn btn-danger btn-full" id="logoutBtn">🚪 Sign Out</button> -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- ── SUB: SECURITY ── -->
+                    <div class="setnav-screen setnav-sub" id="setnav-security">
+                        <div class="setnav-subheader">
+                            <button class="setnav-back-btn" data-back="setnav-home">‹ Settings</button>
+                            <div class="setnav-subheader-title">Security</div>
+                        </div>
+                        <div class="setnav-sub-content">
+
+                            <!-- PIN Toggle -->
+                            <div class="setnav-sub-group-label">APP LOCK</div>
+                            <div class="settings-card">
+                                <div class="settings-item">
+                                    <div class="settings-item-icon" style="background:#FFF1F2;color:#BE123C;">🔒</div>
+                                    <div class="settings-item-body">
+                                        <div class="settings-item-title">PIN Lock</div>
+                                        <div class="settings-item-desc">Require PIN on app startup</div>
+                                    </div>
+                                    <label class="pin-toggle-switch">
+                                        <input type="checkbox" id="pinLockToggle">
+                                        <span class="pin-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Set / Change PIN -->
+                            <div class="setnav-sub-group-label" style="margin-top:14px;">SET PIN</div>
+                            <div class="settings-card" id="pinSetupCard">
+                                <div class="pin-setup-area">
+                                    <div class="pin-dots" id="pinDots">
+                                        <span class="pin-dot" id="d0"></span>
+                                        <span class="pin-dot" id="d1"></span>
+                                        <span class="pin-dot" id="d2"></span>
+                                        <span class="pin-dot" id="d3"></span>
+                                    </div>
+                                    <div class="pin-hint" id="pinHint">Enter a 4-digit PIN</div>
+                                    <div class="pin-pad">
+                                        <button class="pin-key" data-digit="1">1</button>
+                                        <button class="pin-key" data-digit="2">2</button>
+                                        <button class="pin-key" data-digit="3">3</button>
+                                        <button class="pin-key" data-digit="4">4</button>
+                                        <button class="pin-key" data-digit="5">5</button>
+                                        <button class="pin-key" data-digit="6">6</button>
+                                        <button class="pin-key" data-digit="7">7</button>
+                                        <button class="pin-key" data-digit="8">8</button>
+                                        <button class="pin-key" data-digit="9">9</button>
+                                        <button class="pin-key pin-key--blank"></button>
+                                        <button class="pin-key" data-digit="0">0</button>
+                                        <button class="pin-key pin-key--del" id="pinDelBtn">⌫</button>
+                                    </div>
+                                    <button class="btn btn-primary btn-full" id="savePinBtn" style="margin-top:12px;">💾
+                                        Save PIN</button>
+                                    <button class="btn btn-outline btn-full" id="clearPinBtn" style="margin-top:8px;">🗑
+                                        Clear PIN</button>
+                                </div>
+                            </div>
+
+                            <div class="setnav-info-note">
+                                🔐 The PIN is stored securely on this device. If you forget your PIN, sign out and sign
+                                back in to reset it.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── SUB: APPEARANCE ── -->
+                    <div class="setnav-screen setnav-sub" id="setnav-appearance">
+                        <div class="setnav-subheader">
+                            <button class="setnav-back-btn" data-back="setnav-home">‹ Settings</button>
+                            <div class="setnav-subheader-title">Appearance</div>
+                        </div>
+                        <div class="setnav-sub-content">
+
+                            <div class="setnav-sub-group-label">THEME</div>
+                            <div class="settings-card">
+                                <div class="theme-grid" id="themeGrid">
+
+                                    <button class="theme-swatch active" data-theme="royal" aria-label="Royal Blue">
+                                        <div class="theme-swatch-preview"
+                                            style="background:linear-gradient(135deg,#4338CA,#6366F1);"></div>
+                                        <div class="theme-swatch-name">Royal Blue</div>
+                                        <div class="theme-swatch-check">✓</div>
+                                    </button>
+
+                                    <button class="theme-swatch" data-theme="emerald" aria-label="Emerald">
+                                        <div class="theme-swatch-preview"
+                                            style="background:linear-gradient(135deg,#047857,#10B981);"></div>
+                                        <div class="theme-swatch-name">Emerald</div>
+                                        <div class="theme-swatch-check">✓</div>
+                                    </button>
+
+                                    <button class="theme-swatch" data-theme="crimson" aria-label="Crimson">
+                                        <div class="theme-swatch-preview"
+                                            style="background:linear-gradient(135deg,#BE123C,#F43F5E);"></div>
+                                        <div class="theme-swatch-name">Crimson</div>
+                                        <div class="theme-swatch-check">✓</div>
+                                    </button>
+
+                                    <button class="theme-swatch" data-theme="violet" aria-label="Violet">
+                                        <div class="theme-swatch-preview"
+                                            style="background:linear-gradient(135deg,#5B21B6,#8B5CF6);"></div>
+                                        <div class="theme-swatch-name">Violet</div>
+                                        <div class="theme-swatch-check">✓</div>
+                                    </button>
+
+                                    <button class="theme-swatch" data-theme="amber" aria-label="Amber">
+                                        <div class="theme-swatch-preview"
+                                            style="background:linear-gradient(135deg,#B45309,#F59E0B);"></div>
+                                        <div class="theme-swatch-name">Amber</div>
+                                        <div class="theme-swatch-check">✓</div>
+                                    </button>
+
+                                    <button class="theme-swatch" data-theme="dark" aria-label="Dark">
+                                        <div class="theme-swatch-preview"
+                                            style="background:linear-gradient(135deg,#0F172A,#334155);"></div>
+                                        <div class="theme-swatch-name">Dark</div>
+                                        <div class="theme-swatch-check">✓</div>
+                                    </button>
+
+                                </div>
+                            </div>
+
+                            <div class="setnav-sub-group-label" style="margin-top:14px;">PREVIEW</div>
+                            <div class="settings-card theme-preview-card" id="themePreviewCard">
+                                <div class="theme-preview-bar" id="themePreviewBar"></div>
+                                <div class="theme-preview-body">
+                                    <div class="theme-preview-title" id="themePreviewTitle">Royal Blue</div>
+                                    <div class="theme-preview-sub">Primary accent colour</div>
+                                </div>
+                            </div>
+
+                            <div class="setnav-info-note" style="margin-top:8px;">
+                                🎨 Theme changes apply instantly across the whole app and are saved automatically.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── SUB: ADMINS ── -->
+                    <div class="setnav-screen setnav-sub" id="setnav-admins">
+                        <div class="setnav-subheader">
+                            <button class="setnav-back-btn" data-back="setnav-home">‹ Settings</button>
+                            <div class="setnav-subheader-title">Admin Management</div>
+                        </div>
+                        <div class="setnav-sub-content">
+
+                            <div class="setnav-sub-group-label">CURRENT ADMINS</div>
+                            <div class="settings-card" id="adminListCard">
+                                <!-- dynamically populated -->
+                                <div class="admin-list" id="adminList"></div>
+                            </div>
+
+                            <div class="setnav-sub-group-label" style="margin-top:14px;">ADD NEW ADMIN</div>
+                            <div class="settings-card">
+                                <div class="settings-item settings-item--top">
+                                    <div class="settings-item-icon" style="background:#FFFBEB;color:#B45309;">📧</div>
+                                    <div class="settings-item-body">
+                                        <div class="settings-item-title">Email Address</div>
+                                        <div class="settings-item-desc">They will receive an invite to join as admin
+                                        </div>
+                                    </div>
+                                </div>
+                                <input type="email" class="settings-text-input" id="newAdminEmail"
+                                    placeholder="e.g. helper@gmail.com" />
+                                <div class="settings-item settings-item--top" style="padding-top:12px;">
+                                    <div class="settings-item-icon" style="background:#FFFBEB;color:#B45309;">👤</div>
+                                    <div class="settings-item-body">
+                                        <div class="settings-item-title">Display Name</div>
+                                        <div class="settings-item-desc">Name shown in audit logs</div>
+                                    </div>
+                                </div>
+                                <input type="text" class="settings-text-input" id="newAdminName"
+                                    placeholder="e.g. Raju (Assistant)" />
+                                <div class="settings-card-footer">
+                                    <button class="btn btn-primary btn-full" id="addAdminBtn">➕ Add Admin</button>
+                                </div>
+                            </div>
+
+                            <div class="setnav-info-note">
+                                👥 Additional admins can view and edit all customer data. They cannot remove the primary
+                                admin.
+                            </div>
+                        </div>
+                    </div>
+
+                </div><!-- /setnav-track -->
+            </div><!-- /setnav -->
+
+            <nav class="bottom-nav">
+                <button class="nav-item" id="navDashboard3">
+                    <span class="nav-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg></span>
+                    <span class="nav-label">Dashboard</span>
+                </button>
+                <button class="nav-item" id="navReports3">
+                    <span class="nav-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg></span>
+                    <span class="nav-label">Reports</span>
+                </button>
+                <button class="nav-item active" id="navSettings3">
+                    <span class="nav-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg></span>
+                    <span class="nav-label">Settings</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- ███ MODALS ███ -->
+
+        <!-- Add/Edit Customer -->
+        <div class="modal-overlay hidden" id="customerModal">
+            <div class="modal-box">
+                <div class="modal-handle"></div>
+                <div class="modal-inner">
+                    <div class="modal-title" id="customerModalTitle">Add Customer</div>
+                    <div class="modal-desc">Fill in the customer details below.</div>
+                    <div class="input-group">
+                        <label class="input-label" for="custNameInput">Full Name</label>
+                        <input type="text" class="text-input" id="custNameInput" placeholder="e.g. Ramesh Kumar" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="custPhoneInput">Mobile Number</label>
+                        <div class="phone-input-wrap">
+                            <div class="phone-prefix">+91</div>
+                            <input type="tel" class="text-input" id="custPhoneInput" placeholder="98765 43210"
+                                maxlength="10" inputmode="numeric" />
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="custAddrInput">Address</label>
+                        <input type="text" class="text-input" id="custAddrInput"
+                            placeholder="e.g. House 12, Main Road" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="custDefaultQty">Default Qty / Day (L)</label>
+                        <input type="number" class="text-input" id="custDefaultQty" placeholder="e.g. 2" min="0"
+                            max="20" step="0.25" />
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-outline" style="flex:1;" id="cancelCustomerModal">Cancel</button>
+                        <button class="btn btn-primary" style="flex:2;" id="saveCustomerBtn">Save Customer</button>
+                    </div>
+                    <button class="btn btn-danger btn-full modal-delete-btn hidden" id="deleteCustomerModalBtn">🗑️
+                        Delete Customer</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Record Payment -->
+        <div class="modal-overlay hidden" id="paymentModal">
+            <div class="modal-box">
+                <div class="modal-handle"></div>
+                <div class="modal-inner">
+                    <div class="modal-title">Record Payment</div>
+                    <div class="modal-desc" id="paymentModalDesc">Enter amount received from customer.</div>
+                    <div class="input-group">
+                        <label class="input-label" for="paymentAmount">Amount Received (₹)</label>
+                        <input type="number" class="text-input" id="paymentAmount" placeholder="e.g. 500" min="0"
+                            step="1" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="paymentMethod">Payment Method</label>
+                        <select class="text-input" id="paymentMethod">
+                            <option value="cash">💵 Cash</option>
+                            <option value="upi">📲 UPI / PhonePe / GPay</option>
+                            <option value="bank">🏦 Bank Transfer</option>
+                            <option value="other">📝 Other</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="paymentNote">Note (optional)</label>
+                        <input type="text" class="text-input" id="paymentNote"
+                            placeholder="e.g. Advance for next month" />
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-outline" style="flex:1;" id="cancelPaymentModal">Cancel</button>
+                        <button class="btn btn-primary" style="flex:2;" id="confirmPaymentBtn">✅ Confirm
+                            Payment</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Send Report Modal -->
+        <div class="modal-overlay hidden" id="reportSendModal">
+            <div class="modal-box">
+                <div class="modal-handle"></div>
+                <div class="modal-inner">
+                    <div class="modal-title" id="reportSendTitle">Send Report</div>
+                    <div class="modal-desc">Choose the type of report to send.</div>
+                    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
+                        <label
+                            style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:border-color 0.15s;"
+                            id="reportTypeDaily">
+                            <input type="radio" name="reportType" value="daily" style="accent-color:var(--primary);" />
+                            <div>
+                                <div style="font-weight:700;font-size:0.9rem;">📅 Daily Report</div>
+                                <div style="font-size:0.78rem;color:var(--text-muted);">Today's delivery & amount
+                                </div>
+                            </div>
+                        </label>
+                        <label
+                            style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:border-color 0.15s;"
+                            id="reportTypeWeekly">
+                            <input type="radio" name="reportType" value="weekly" style="accent-color:var(--primary);" />
+                            <div>
+                                <div style="font-weight:700;font-size:0.9rem;">📆 Weekly Report</div>
+                                <div style="font-size:0.78rem;color:var(--text-muted);">Last 7 days summary</div>
+                            </div>
+                        </label>
+                        <label
+                            style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:border-color 0.15s;"
+                            id="reportTypeMonthly">
+                            <input type="radio" name="reportType" value="monthly" checked
+                                style="accent-color:var(--primary);" />
+                            <div>
+                                <div style="font-weight:700;font-size:0.9rem;">🗓️ Monthly Report</div>
+                                <div style="font-size:0.78rem;color:var(--text-muted);">Full month billing statement
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-outline" style="flex:1;" id="cancelReportSendModal">Cancel</button>
+                        <button class="btn btn-whatsapp" style="flex:2;" id="confirmSendWhatsappBtn">💬 Send on
+                            WhatsApp</button>
+                    </div>
+                    <button class="btn btn-outline btn-full" style="margin-top:10px;" id="confirmCopyReportBtn">📋
+                        Copy
+                        to Clipboard</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div class="toast" id="toast"></div>
+    </div>
+
+    <!-- ███ PRINT / PDF TEMPLATE ███ -->
+    <div class="print-only" id="printTemplate">
+        <div class="invoice-header">
+            <div class="invoice-brand-wrap">
+                <span style="font-size: 40px; line-height: 1;">🥛</span>
+                <div>
+                    <div class="invoice-brand">MilkBook</div>
+                    <div class="invoice-tagline">Milk Delivery & Billing Statement</div>
+                </div>
+            </div>
+            <div class="invoice-id" id="printInvoiceId">—</div>
+        </div>
+        <div class="invoice-meta">
+            <div class="invoice-customer">
+                <div class="invoice-label">Customer</div>
+                <div class="invoice-value" id="printCustName">—</div>
+                <div class="invoice-label">Phone</div>
+                <div class="invoice-value" id="printCustPhone">—</div>
+                <div class="invoice-label">Address</div>
+                <div class="invoice-value" id="printCustAddr">—</div>
+            </div>
+            <div class="invoice-period">
+                <div class="invoice-label">Billing Period</div>
+                <div class="invoice-value" id="printPeriod">—</div>
+                <div class="invoice-label">Invoice Date</div>
+                <div class="invoice-value" id="printDate">—</div>
+                <div class="invoice-label">Rate</div>
+                <div class="invoice-value" id="printRate">—</div>
+            </div>
+        </div>
+        <table class="invoice-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Morning</th>
+                    <th>Evening</th>
+                    <th>Litres</th>
+                    <th>Amount</th>
+                    <th>Collected</th>
+                </tr>
+            </thead>
+            <tbody id="printTableBody"></tbody>
+            <tfoot>
+                <tr class="invoice-total-row">
+                    <td colspan="4"><strong>Total</strong></td>
+                    <td><strong id="printTotalLitres">—</strong></td>
+                    <td><strong id="printTotalAmt">—</strong></td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+        <div class="invoice-bottom-flex">
+            <div class="invoice-payment-info" id="printPaymentInfo"></div>
+            <div class="invoice-qr-wrap hidden" id="printQrWrap">
+                <div class="qr-label">SCAN TO PAY</div>
+                <img src="" id="printQrImg" class="invoice-qr-img" />
+            </div>
+        </div>
+        <div class="invoice-footer" id="printFooter">Thank you for your business! | Generated by MilkBook</div>
+    </div>
+
+    <!-- ═══ PAGE: CUSTOMER PORTAL (Read-only view for customers) ═══ -->
+    <div id="page-portal" class="page hidden">
+        <!-- Hero -->
+        <div class="portal-hero">
+            <!-- <button class="portal-logout" id="portalLogoutBtn">Sign Out</button> -->
+            <div class="portal-avatar" id="portalAvatar">?</div>
+            <div class="portal-name" id="portalName">—</div>
+            <div class="portal-phone" id="portalPhone">—</div>
+            <div class="portal-label">My Milk Account</div>
+        </div>
+
+        <!-- Month selector -->
+        <div class="month-selector">
+            <button class="date-arrow" id="portalPrevMonth">&#8249;</button>
+            <div class="month-display" id="portalMonthDisplay">—</div>
+            <button class="date-arrow" id="portalNextMonth">&#8250;</button>
+        </div>
+
+        <!-- Pay Status Banner -->
+        <div style="padding: 0 var(--content-pad);">
+            <div class="pay-status-banner pay-status-banner--due" id="portalPayBanner">
+                <span class="pay-status-text pay-status-text--due" id="portalPayText">⚠️ Outstanding Balance</span>
+                <span class="pay-status-amount" id="portalPayAmount">—</span>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="portal-content">
+            <div class="portal-notice">📋 This is a read-only view of your milk account.</div>
+            <div>
+                <div class="portal-section-title">This Month's Summary</div>
+                <div class="summary-grid">
+                    <div class="summary-card summary-card--blue">
+                        <div class="summary-card-label">Litres</div>
+                        <div class="summary-card-value" id="portalSummLitres">—</div>
+                    </div>
+                    <div class="summary-card summary-card--amber">
+                        <div class="summary-card-label">Bill</div>
+                        <div class="summary-card-value" id="portalSummBill">—</div>
+                    </div>
+                    <div class="summary-card summary-card--green">
+                        <div class="summary-card-label">Paid</div>
+                        <div class="summary-card-value" id="portalSummPaid">—</div>
+                    </div>
+                    <div class="summary-card summary-card--red">
+                        <div class="summary-card-label">Due</div>
+                        <div class="summary-card-value" id="portalSummDue">—</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Daily History -->
+            <div>
+                <div class="portal-section-title">Daily Deliveries</div>
+                <div class="daily-history-list" id="portalHistoryList">
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <div class="empty-text">No deliveries yet</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CROP MODAL -->
+    <div class="modal-overlay hidden" id="cropModal">
+        <div class="modal-box" style="height: 80vh;">
+            <div class="modal-handle"></div>
+            <div class="modal-inner" style="height: 100%; display: flex; flex-direction: column;">
+                <div class="modal-title">Crop QR Code</div>
+                <div class="modal-desc">Adjust the image to fit the square ratio.</div>
+                <div style="flex: 1; min-height: 0; margin-bottom: 20px;">
+                    <!-- The image inside this div will be operated on by Cropper.js -->
+                    <img id="cropImage" src="" style="max-width: 100%; display: block;" />
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-outline" style="flex:1;" id="cancelCropBtn">Cancel</button>
+                    <button class="btn btn-primary" style="flex:2;" id="confirmCropBtn">✂️ Crop & Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="calculations.js"></script>
+    <script type="module" src="db.js"></script>
+
+    <script type="module" src="reports.js"></script>
+    <script type="module" src="router.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>
