@@ -2379,6 +2379,26 @@ textarea {
     margin-top: 3px;
 }
 
+/* Due stat — base (zero dues, neutral look) */
+.report-stat--due {
+    border-radius: 8px;
+    transition: background 0.3s;
+}
+
+/* Due stat — active (has pending dues, red glow) */
+.report-stat--due-active {
+    background: rgba(239, 68, 68, 0.18);
+    border-right-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+.report-stat--due-active .report-stat-value {
+    color: #FCA5A5;
+}
+
+.report-stat--due-active .report-stat-label {
+    color: rgba(252, 165, 165, 0.85);
+}
+
 .report-customer-list {
     padding: 16px var(--content-pad) var(--content-pad);
     display: flex;
@@ -2502,6 +2522,29 @@ textarea {
     justify-content: space-between;
     align-items: center;
     gap: 12px;
+}
+
+.report-mini-whatsapp {
+    background: transparent;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.report-mini-whatsapp:hover {
+    background: #F0FDF4;
+    border-color: #22C55E;
+    transform: scale(1.05);
+}
+
+.report-mini-whatsapp:active {
+    transform: scale(0.95);
 }
 
 .report-row-left {
@@ -3314,6 +3357,96 @@ textarea {
     font-weight: 700;
     font-size: 0.75rem;
     cursor: pointer;
+}
+
+.qr-remove-btn {
+    background: #FEE2E2;
+    color: #EF4444;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+/* ── Customer Photo ── */
+.photo-setup-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+}
+
+.photo-preview-box {
+    width: 100px;
+    height: 100px;
+    border: 2px dashed var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: var(--surface-2);
+}
+
+.photo-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+}
+
+.photo-upload-trigger {
+    background: var(--primary-light);
+    color: var(--primary);
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 0.65rem;
+    cursor: pointer;
+}
+
+.photo-preview-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.photo-remove-btn {
+    background: #FEE2E2;
+    color: #EF4444;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.report-row-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    font-weight: 700;
+    color: var(--primary);
+    border: 1px solid var(--border-subtle);
+}
+
+.report-row-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .qr-preview-img {

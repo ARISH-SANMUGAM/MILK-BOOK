@@ -152,6 +152,14 @@
     gap: 4px;
 }
 
+.setnav-page-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--text-primary, #111827);
+    padding: 20px 16px 4px;
+}
+
 .setnav-group-label {
     font-size: 0.68rem;
     font-weight: 800;

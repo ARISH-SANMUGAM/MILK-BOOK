@@ -10,7 +10,8 @@ import {
     initDB, getCustomers, saveCustomer, deleteCustomer,
     getDailyRecords, saveDailyRecord, getDailyRecord,
     recordPayment, getSettings, saveSettings, getPayments, deleteMonthPayments,
-    getLifetimeStats, getLocalData, getAggregatesBeforeDate
+    getLifetimeStats, getLocalData, getAggregatesBeforeDate,
+    updateMonthlyPaymentHistory, getMonthlyPaymentHistory
 } from './db.js';
 import { SEED_CUSTOMERS } from './seed-data.js';
 import {
@@ -19,6 +20,9 @@ import {
 } from './calculations.js';
 import { downloadCustomerCSV, downloadAllCSV, generateIndividualPDF, generateSummaryPDF } from './reports.js';
 import { initDriveSync } from './drive-sync.js';
+
+const WHATSAPP_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:30px;height:30px;"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>`;
+const CALL_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:24px;height:24px;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
 
 /* ═══════════════════════════════════════════
    STATE
@@ -46,6 +50,8 @@ const state = {
     reportEndDate: null,
     paymentQr: null, // Base64 string of the QR image
     reportSelections: new Set(),
+    currentCustPhoto: null, // Base64 string of the customer photo
+    cropTarget: null, // 'qr' or 'photo'
 };
 
 /* ═══════════════════════════════════════════
@@ -368,8 +374,8 @@ function renderCustomerList(list) {
 
         return `
     <div class="customer-card ${statusClass}" data-id="${c.id}">
-      <div class="customer-avatar" data-action="call" data-phone="${c.phone || ''}" style="background:transparent;">
-          <img src="whatsapp-icon.png" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">
+      <div class="customer-avatar" data-action="call" data-phone="${c.phone || ''}" style="background:transparent; color:#22C55E;">
+          ${CALL_ICON_SVG}
       </div>
       <div class="customer-info" data-action="view">
         <div class="customer-name">${c.name}</div>
@@ -621,66 +627,12 @@ async function saveEntry() {
 ═══════════════════════════════════════════ */
 
 async function loadCustomerMonth() {
-    const cust = state.currentCustomer;
-    const { currentMonth: m, currentYear: y, settings } = state;
-    $('monthDisplay').textContent = `${getMonthName(m)} ${y}`;
-
-    try {
-        const records = await getDailyRecords(cust.id, y, m);
-        const payments = await getPayments(cust.id, y, m).catch(() => []);
-        const totals = calcMonthlyTotals(records, settings.rate);
-        const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
-        const outstanding = totals.totalAmount - paidAmt;
-
-        $('summLitres').textContent = `${totals.totalLitres} L`;
-        $('summBill').textContent = formatCurrency(totals.totalAmount);
-        $('summDays').textContent = totals.daysDelivered;
-        $('summOutstanding').textContent = formatCurrency(Math.max(0, outstanding));
-
-        // Lifetime Stats
-        const lifetime = await getLifetimeStats(cust.id);
-        $('lifetimeLitres').textContent = `${lifetime.totalLitres.toFixed(1)}L`;
-        $('lifetimeRevenue').textContent = formatCurrency(lifetime.totalRevenue);
-        $('lifetimePaid').textContent = formatCurrency(lifetime.totalPaid);
-
-        // Pay banner
-        const banner = $('payStatusBanner');
-        if (outstanding <= 0) {
-            banner.className = 'pay-status-banner pay-status-banner--paid';
-            $('payStatusText').className = 'pay-status-text pay-status-text--paid';
-            $('payStatusText').textContent = '✅ All Paid';
-            $('payStatusAmount').textContent = paidAmt > 0 ? `Paid: ${formatCurrency(paidAmt)}` : 'No bill this month';
-        } else {
-            banner.className = 'pay-status-banner pay-status-banner--due';
-            $('payStatusText').className = 'pay-status-text pay-status-text--due';
-            $('payStatusText').textContent = '⚠️ Outstanding Balance';
-            $('payStatusAmount').textContent = formatCurrency(outstanding);
-        }
-
-        renderDailyHistory(records, 'dailyHistoryList');
-
-        // Payment History List
-        const allPayments = await getPayments(cust.id).catch(() => []);
-        const payList = $('paymentHistoryList');
-        if (!allPayments.length) {
-            payList.innerHTML = `<div class="empty-state">No payment history</div>`;
-        } else {
-            const sortedPays = [...allPayments].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-            payList.innerHTML = sortedPays.map(p => `
-                <div class="payment-row">
-                    <div class="payment-row-info">
-                        <span class="payment-row-note">${p.note || 'Cash Payment'}</span>
-                        <span class="payment-row-date">${formatDate(new Date(p.date || p.created_at || Date.now()), 'short')}</span>
-                    </div>
-                    <span class="payment-row-amt">+ ${formatCurrency(p.amount)}</span>
-                </div>
-            `).join('');
-        }
-    } catch (err) {
-        console.error(err);
-        $('dailyHistoryList').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">Failed to load data</div></div>`;
-    }
+    // This function originally referenced old DOM elements (monthDisplay, summOutstanding, etc)
+    // that no longer exist in the HTML structure. 
+    // It has been disabled to prevent crashes. Payment/entry refreshes are now handled by renderEntryHistory().
+    console.log("loadCustomerMonth called (no-op: disabled legacy function)");
 }
+
 
 function renderDailyHistory(records, containerId = 'dailyHistoryList') {
     const list = $(containerId);
@@ -747,19 +699,80 @@ async function confirmPayment() {
     btn.innerHTML = `<span class="btn-spinner"></span> Recording…`;
 
     try {
-        await recordPayment(cust.id, {
-            amount: amt,
-            method: $('paymentMethod').value,
-            note: $('paymentNote').value,
-            date: todayString(),
-            month: state.currentMonth,
-            year: state.currentYear,
-        });
-        closeModal('paymentModal');
-        toast(`Payment of ${formatCurrency(amt)} recorded ✓`, 'success');
-        await loadCustomerMonth();
+        const today = todayString();
+        const rMonth = state.currentMonth;
+        const rYear = state.currentYear;
+        const dateStr = `${rYear}-${String(rMonth).padStart(2, '0')}-01`;
+
+        // 1. Calculate current month's bill
+        const records = await getDailyRecords(cust.id, rYear, rMonth);
+        const payments = await getPayments(cust.id, rYear, rMonth);
+        const totals = calcMonthlyTotals(records, state.settings.rate);
+        const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
+        const currentBill = Math.max(0, totals.totalAmount - paidAmt);
+
+        // 2. Calculate old due
+        const prev = await getAggregatesBeforeDate(cust.id, dateStr);
+        const oldDue = Math.max(0, (prev.totalRevenue || 0) - (prev.totalPaid || 0));
+
+        let remainingPayment = amt;
+        const method = $('paymentMethod').value;
+        const note = $('paymentNote').value;
+
+        // First: reduce the current month bill
+        if (currentBill > 0 && remainingPayment > 0) {
+            const payForCurrent = Math.min(currentBill, remainingPayment);
+            await recordPayment(cust.id, {
+                amount: payForCurrent,
+                method: method,
+                note: note || (remainingPayment < amt ? 'Current bill portion collected' : ''),
+                date: today,
+                month: rMonth,
+                year: rYear,
+            });
+            remainingPayment -= payForCurrent;
+        }
+
+        // Then: reduce the old due amount
+        if (oldDue > 0 && remainingPayment > 0) {
+            const payForOld = Math.min(oldDue, remainingPayment);
+            const oldMonth = rMonth === 1 ? 12 : rMonth - 1;
+            const oldYear = rMonth === 1 ? rYear - 1 : rYear;
+            await recordPayment(cust.id, {
+                amount: payForOld,
+                method: method,
+                note: note || 'Old due portion collected',
+                date: today,
+                month: oldMonth,
+                year: oldYear,
+            });
+            remainingPayment -= payForOld;
+        }
+
+        // If there's still an amount left (overpayment / advance), add it to current month
+        if (remainingPayment > 0) {
+            await recordPayment(cust.id, {
+                amount: remainingPayment,
+                method: method,
+                note: note || 'Advance / Overpayment',
+                date: today,
+                month: rMonth,
+                year: rYear,
+            });
+        }
+
         $('paymentAmount').value = '';
         $('paymentNote').value = '';
+        closeModal('paymentModal');
+        toast(`Payment of ${formatCurrency(amt)} recorded ✓`, 'success');
+
+        // Refresh the entry history to reflect the new payment
+        await renderEntryHistory();
+
+        // Optional: Also reload reports if in the background
+        if (typeof loadReportsPage === 'function' && $('page-reports').style.display === 'block') {
+            loadReportsPage();
+        }
     } catch (err) {
         toast('Failed: ' + err.message, 'error');
     } finally {
@@ -767,6 +780,7 @@ async function confirmPayment() {
         btn.innerHTML = '✅ Confirm Payment';
     }
 }
+
 
 /* ═══════════════════════════════════════════
    REPORT SHARING
@@ -966,14 +980,37 @@ async function loadReportsPage() {
 
     try {
         const customers = state.customers;
-        let totalLitres = 0, totalRevenue = 0, totalPaid = 0;
+        let totalLitres = 0, totalRevenue = 0, totalCashCollectedPeriod = 0, totalOldDuesCollectedPeriod = 0, totalDue = 0;
 
         const dateRange = getReportDateRange(period);
+        const [reportYear, reportMonth] = dateRange.start.split('-').map(Number);
+
         const dataRows = await Promise.all(customers.map(async c => {
             const records = await getRangeRecords(c.id, dateRange.start, dateRange.end);
-            const payments = await getRangePayments(c.id, dateRange.start, dateRange.end);
 
-            const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
+            // For calculating balances:
+            // Fetch payments attributed to THIS period, regardless of when they were physically paid
+            let attributedPayments = [];
+            for (let y = reportYear; y <= Number(dateRange.end.split('-')[0]); y++) {
+                let startM = y === reportYear ? reportMonth : 1;
+                let endM = y === Number(dateRange.end.split('-')[0]) ? Number(dateRange.end.split('-')[1]) : 12;
+                for (let m = startM; m <= endM; m++) {
+                    const monthPays = await getPayments(c.id, y, m).catch(() => []);
+                    attributedPayments = [...attributedPayments, ...monthPays];
+                }
+            }
+
+            // For calculating cash flow (Hero panel):
+            // Fetch all payments PHYSICALLY made during this period
+            const allCustomerPayments = await getPayments(c.id).catch(() => []); // if year/month omitted, it fetches all
+            const physicalPaymentsPeriod = allCustomerPayments.filter(p => {
+                const d = p.created_at?.toDate ? p.created_at.toDate() : new Date(p.date || p.created_at);
+                const dStr = dateToString(d);
+                return dStr >= dateRange.start && dStr <= dateRange.end;
+            });
+
+            // 1. Calculate Balances
+            const paidAmt = attributedPayments.reduce((s, p) => s + (p.amount || 0), 0);
             const totals = calcMonthlyTotals(records, state.settings.rate);
 
             // Previous Balance Calculation
@@ -983,9 +1020,22 @@ async function loadReportsPage() {
             const currentOutstanding = totals.totalAmount - paidAmt;
             const outstanding = Math.max(0, prevBalance + currentOutstanding);
 
+            // 2. Calculate Cash Flow for Hero Panel
+            const cashCollected = physicalPaymentsPeriod.reduce((s, p) => s + (p.amount || 0), 0);
+            const oldDuesCollected = physicalPaymentsPeriod.filter(p => {
+                // Determine if this payment was attributed to a period BEFORE the report start date
+                if (p.year && p.month) {
+                    return p.year < reportYear || (p.year === reportYear && p.month < reportMonth);
+                }
+                const pDate = p.date || p.created_at || '0000-00-00';
+                return pDate < dateRange.start;
+            }).reduce((s, p) => s + (p.amount || 0), 0);
+
             totalLitres += totals.totalLitres;
             totalRevenue += totals.totalAmount;
-            totalPaid += paidAmt;
+            totalCashCollectedPeriod += cashCollected;
+            totalOldDuesCollectedPeriod += oldDuesCollected;
+            totalDue += outstanding;
 
             return { ...c, totals, paidAmt, prevBalance, outstanding, records };
         }));
@@ -993,7 +1043,12 @@ async function loadReportsPage() {
         state.lastReportData = dataRows; // Store for bulk actions
 
         $('reportTotalLitres').textContent = `${totalLitres.toFixed(1)}L`;
-        $('reportTotalRevenue').textContent = formatCurrency(totalRevenue);
+        $('reportTotalRevenue').textContent = formatCurrency(totalCashCollectedPeriod);
+        const oldDuesEl = document.getElementById('reportTotalOldDues');
+        if (oldDuesEl) oldDuesEl.textContent = formatCurrency(totalOldDuesCollectedPeriod);
+        const dueEl = $('reportTotalDue');
+        dueEl.textContent = formatCurrency(totalDue);
+        dueEl.closest('.report-stat').classList.toggle('report-stat--due-active', totalDue > 0);
 
         const list = $('reportCustomerList');
         if (!dataRows.length) {
@@ -1018,15 +1073,17 @@ async function loadReportsPage() {
         <div class="report-row-content">
             <div class="report-row-top-bar">
                 <div class="report-row-left">
-                    <div class="customer-avatar">${initial}</div>
+                    <div class="report-row-avatar">
+                        ${r.photo ? `<img src="${r.photo}" alt="${r.name}" />` : initial}
+                    </div>
                     <div class="report-row-identity-info">
                         <div class="report-row-name">${r.name}</div>
                         ${r.phone ? `<div class="report-row-phone">${r.phone}</div>` : ''}
                     </div>
                 </div>
                 <div class="report-row-actions">
-                    <button class="report-mini-whatsapp" data-id="${r.id}" title="Send PDF via WhatsApp">
-                        <img src="whatsapp-icon.png" style="width:20px; height:20px;">
+                    <button class="report-mini-whatsapp" data-id="${r.id}" title="Send PDF via WhatsApp" style="color:#25D366;">
+                        ${WHATSAPP_SVG.replace('width:30px;height:30px;', 'width:20px;height:20px;')}
                     </button>
                 </div>
             </div>
@@ -1049,7 +1106,11 @@ async function loadReportsPage() {
                 <button class="report-status-badge ${statusClass}" 
                     data-pay-id="${r.id}" 
                     data-pay-name="${r.name}" 
-                    data-pay-outstanding="${r.outstanding.toFixed(0)}" 
+                    data-pay-outstanding="${r.outstanding.toFixed(0)}"
+                    data-pay-prev-balance="${r.prevBalance.toFixed(0)}"
+                    data-pay-current-due="${Math.max(0, r.totals.totalAmount - r.paidAmt).toFixed(0)}"
+                    data-pay-report-month="${m}"
+                    data-pay-report-year="${y}"
                     data-pay-paid="${isPaid ? 1 : 0}">
                     ${isPaid ? 'Collected' : 'Pending'}
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
@@ -1205,6 +1266,10 @@ function attachReportListeners(list) {
                     id: statusBtn.dataset.payId,
                     name: statusBtn.dataset.payName,
                     outstanding: statusBtn.dataset.payOutstanding,
+                    prevBalance: statusBtn.dataset.payPrevBalance,
+                    currentDue: statusBtn.dataset.payCurrentDue,
+                    reportMonth: parseInt(statusBtn.dataset.payReportMonth),
+                    reportYear: parseInt(statusBtn.dataset.payReportYear),
                     paid: statusBtn.dataset.payPaid
                 });
                 return;
@@ -1388,12 +1453,14 @@ async function buildReportTextForData(d) {
 }
 
 /* ─── Quick Pay Sheet (from Reports) ──────────────────────── */
-function showQuickPaySheet({ id, name, outstanding, paid }) {
+function showQuickPaySheet({ id, name, outstanding, prevBalance = 0, currentDue = 0, reportMonth, reportYear, paid }) {
     // Remove any existing sheet
     document.getElementById('quickPaySheet')?.remove();
 
     const isPaid = paid === '1' || Number(outstanding) <= 0;
     const amount = Number(outstanding);
+    const prevAmt = Number(prevBalance);
+    const currAmt = Number(currentDue);
 
     const sheet = document.createElement('div');
     sheet.id = 'quickPaySheet';
@@ -1411,6 +1478,11 @@ function showQuickPaySheet({ id, name, outstanding, paid }) {
                     <span class="quick-pay-lbl">Outstanding</span>
                     <span class="quick-pay-amt">${formatCurrency(amount)}</span>
                 </div>
+                ${prevAmt > 0 ? `
+                <div class="quick-pay-amount-row" style="font-size:0.8rem; opacity:0.75;">
+                    <span class="quick-pay-lbl">Incl. Old Due</span>
+                    <span class="quick-pay-amt" style="color:#ef4444;">${formatCurrency(prevAmt)}</span>
+                </div>` : ''}
                 <button class="btn btn-primary quick-pay-confirm-btn" id="qpConfirmBtn">
                     ✅ Mark as Collected
                 </button>
@@ -1428,22 +1500,57 @@ function showQuickPaySheet({ id, name, outstanding, paid }) {
         b.addEventListener('click', () => sheet.remove())
     );
 
-    // Confirm: mark as collected
+    // Confirm: mark as collected — split payment by attribution month
     const confirmBtn = sheet.querySelector('#qpConfirmBtn');
     if (confirmBtn) {
         confirmBtn.addEventListener('click', async () => {
             confirmBtn.disabled = true;
             confirmBtn.textContent = 'Saving…';
             try {
-                const { reportMonth: m, reportYear: y } = state;
-                await recordPayment(id, {
-                    amount,
-                    month: m,
-                    year: y,
-                    method: 'cash',
-                    note: 'Marked collected from Reports',
-                    date: new Date().toISOString().slice(0, 10),
-                });
+                const today = new Date().toISOString().slice(0, 10);
+                const rMonth = reportMonth || (new Date().getMonth() + 1);
+                const rYear = reportYear || new Date().getFullYear();
+
+                // ── Step 1: Record old-due portion against the PREVIOUS period ──
+                // This ensures getAggregatesBeforeDate (filtered by attribution month)
+                // will include this payment and clear the prevBalance.
+                if (prevAmt > 0) {
+                    const oldMonth = rMonth === 1 ? 12 : rMonth - 1;
+                    const oldYear = rMonth === 1 ? rYear - 1 : rYear;
+                    await recordPayment(id, {
+                        amount: prevAmt,
+                        month: oldMonth,
+                        year: oldYear,
+                        method: 'cash',
+                        note: 'Old due collected (from Reports)',
+                        date: today,
+                    });
+                }
+
+                // ── Step 2: Record current-period portion against current period ──
+                if (currAmt > 0) {
+                    await recordPayment(id, {
+                        amount: currAmt,
+                        month: rMonth,
+                        year: rYear,
+                        method: 'cash',
+                        note: 'Collected from Reports',
+                        date: today,
+                    });
+                }
+
+                // Fallback: if both are 0 (e.g. outstanding data missing), record full amount
+                if (prevAmt <= 0 && currAmt <= 0 && amount > 0) {
+                    await recordPayment(id, {
+                        amount,
+                        month: rMonth,
+                        year: rYear,
+                        method: 'cash',
+                        note: 'Collected from Reports',
+                        date: today,
+                    });
+                }
+
                 sheet.remove();
                 toast(`✅ ${name} marked as Collected`, 'success');
                 await loadReportsPage();
@@ -1508,12 +1615,37 @@ function updateQrUI() {
     } else {
         preview.innerHTML = `
             <div class="qr-placeholder">
-                <span>No QR selected</span>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><rect x="7" y="7" width="3" height="3"></rect><rect x="14" y="7" width="3" height="3"></rect><rect x="7" y="14" width="3" height="3"></rect><rect x="14" y="14" width="3" height="3"></rect></svg>
+                <span>No QR Uploaded</span>
                 <button class="qr-upload-trigger" id="qrUploadBtn">Upload QR</button>
             </div>`;
         removeBtn.classList.add('hidden');
-        // Re-wire upload button because we just replaced the innerHTML
-        $('qrUploadBtn')?.addEventListener('click', () => $('qrFileInput').click());
+        $('qrUploadBtn')?.addEventListener('click', () => {
+            state.cropTarget = 'qr';
+            $('qrFileInput').click();
+        });
+    }
+}
+
+function updateCustPhotoUI() {
+    const preview = $('custPhotoPreview');
+    const removeBtn = $('custPhotoRemoveBtn');
+    if (!preview) return;
+
+    if (state.currentCustPhoto) {
+        preview.innerHTML = `<img src="${state.currentCustPhoto}" class="photo-preview-img" />`;
+        removeBtn.classList.remove('hidden');
+    } else {
+        preview.innerHTML = `
+            <div class="photo-placeholder">
+                <span>No Photo</span>
+                <button class="photo-upload-trigger" id="custPhotoUploadBtn">Upload Photo</button>
+            </div>`;
+        removeBtn.classList.add('hidden');
+        $('custPhotoUploadBtn')?.addEventListener('click', () => {
+            state.cropTarget = 'photo';
+            $('custPhotoInput').click();
+        });
     }
 }
 
@@ -1529,6 +1661,8 @@ function openAddCustomer() {
     $('custPhoneInput').value = '';
     $('custAddrInput').value = '';
     $('custDefaultQty').value = '';
+    state.currentCustPhoto = null;
+    updateCustPhotoUI();
     $('deleteCustomerModalBtn').classList.add('hidden');
     openModal('customerModal');
 }
@@ -1540,6 +1674,8 @@ function openEditCustomer(cust) {
     $('custPhoneInput').value = cust.phone || '';
     $('custAddrInput').value = cust.address || '';
     $('custDefaultQty').value = cust.default_qty || '';
+    state.currentCustPhoto = cust.photo || null;
+    updateCustPhotoUI();
     $('deleteCustomerModalBtn').classList.remove('hidden');
     openModal('customerModal');
 }
@@ -1549,6 +1685,8 @@ async function saveCustomerAction() {
     const phone = $('custPhoneInput').value.trim();
     const addr = $('custAddrInput').value.trim();
     const defQty = parseFloat($('custDefaultQty').value) || 0;
+    const photo = state.currentCustPhoto;
+
     if (!name) { toast('Enter customer name', 'error'); return; }
 
     const btn = $('saveCustomerBtn');
@@ -1556,7 +1694,7 @@ async function saveCustomerAction() {
     btn.innerHTML = `<span class="btn-spinner"></span>`;
 
     try {
-        await saveCustomer({ id: editingCustomerId, name, phone, address: addr, default_qty: defQty });
+        await saveCustomer({ id: editingCustomerId, name, phone, address: addr, default_qty: defQty, photo });
         closeModal('customerModal');
         toast(editingCustomerId ? 'Customer updated ✓' : 'Customer added ✓', 'success');
         await loadDashboard();
@@ -1570,11 +1708,46 @@ async function saveCustomerAction() {
 
 async function deleteCurrentCustomer() {
     if (!editingCustomerId) return;
-    if (!confirm('Delete this customer? All their data will be removed.')) return;
-    await deleteCustomer(editingCustomerId).catch(console.error);
-    closeModal('customerModal');
-    await loadDashboard();
-    toast('Customer deleted', 'success');
+
+    // Check pending dues before allowing deletion
+    const btn = $('deleteCustomerModalBtn');
+    const oldText = btn.innerHTML;
+    btn.innerHTML = `<span class="btn-spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;border-color:currentcolor"></span>`;
+    btn.disabled = true;
+
+    try {
+        const { totalRevenue, totalPaid } = await getLifetimeStats(editingCustomerId);
+        const outstanding = Math.max(0, totalRevenue - totalPaid);
+
+        if (outstanding > 0) {
+            alert(`Deletion blocked. This user has a pending balance of ${formatCurrency(outstanding)}.`);
+            return;
+        }
+
+        if (!confirm('This user has no pending dues. Are you sure you want to delete this account? The account will be permanently deleted after 15 days.')) {
+            return;
+        }
+
+        // Mark for deletion and hide from active list (handled in db.js getCustomers)
+        const deleteDate = new Date();
+        deleteDate.setDate(deleteDate.getDate() + 15);
+
+        await saveCustomer({
+            id: editingCustomerId,
+            marked_for_deletion: true,
+            delete_scheduled_at: deleteDate.toISOString()
+        });
+
+        closeModal('customerModal');
+        await loadDashboard();
+        toast('Account marked for deletion', 'success');
+    } catch (err) {
+        console.error("Error scheduling deletion:", err);
+        toast('Error processing deletion', 'error');
+    } finally {
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+    }
 }
 
 /* ═══════════════════════════════════════════
@@ -1654,15 +1827,27 @@ async function printInvoice() {
 
 /** Wire events for the QR Code setup */
 function wireQrEvents() {
-    $('qrUploadBtn')?.addEventListener('click', () => $('qrFileInput').click());
+    $('qrUploadBtn')?.addEventListener('click', () => {
+        state.cropTarget = 'qr';
+        $('qrFileInput').click();
+    });
     $('qrRemoveBtn')?.addEventListener('click', () => {
         state.paymentQr = null;
         updateQrUI();
     });
 
+    $('custPhotoUploadBtn')?.addEventListener('click', () => {
+        state.cropTarget = 'photo';
+        $('custPhotoInput').click();
+    });
+    $('custPhotoRemoveBtn')?.addEventListener('click', () => {
+        state.currentCustPhoto = null;
+        updateCustPhotoUI();
+    });
+
     let cropperInstance = null;
 
-    $('qrFileInput')?.addEventListener('change', e => {
+    const handleFile = e => {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -1674,12 +1859,8 @@ function wireQrEvents() {
             cropModal.classList.remove('hidden');
             cropImage.src = evt.target.result;
 
-            // Wait for the image to load before initializing Cropper
             cropImage.onload = () => {
-                if (cropperInstance) {
-                    cropperInstance.destroy();
-                }
-
+                if (cropperInstance) cropperInstance.destroy();
                 cropperInstance = new Cropper(cropImage, {
                     aspectRatio: 1,
                     viewMode: 1,
@@ -1688,8 +1869,11 @@ function wireQrEvents() {
             };
         };
         reader.readAsDataURL(file);
-        e.target.value = ''; // allow picking same file again
-    });
+        e.target.value = '';
+    };
+
+    $('qrFileInput')?.addEventListener('change', handleFile);
+    $('custPhotoInput')?.addEventListener('change', handleFile);
 
     $('cancelCropBtn')?.addEventListener('click', () => {
         $('cropModal').classList.add('hidden');
@@ -1707,8 +1891,15 @@ function wireQrEvents() {
             height: 512,
         });
 
-        state.paymentQr = canvas.toDataURL('image/png', 0.9);
-        updateQrUI();
+        const dataUrl = canvas.toDataURL('image/png', 0.9);
+
+        if (state.cropTarget === 'qr') {
+            state.paymentQr = dataUrl;
+            updateQrUI();
+        } else {
+            state.currentCustPhoto = dataUrl;
+            updateCustPhotoUI();
+        }
 
         $('cropModal').classList.add('hidden');
         cropperInstance.destroy();

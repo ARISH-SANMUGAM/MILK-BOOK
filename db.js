@@ -69,22 +69,41 @@ export async function saveSettings(data) {
 
 // ─── Customers ────────────────────────────────────────────
 export async function getCustomers() {
+    let list = [];
     if (isDemoMode()) {
         const s = LOCAL.get();
-        return Object.entries(s.customers).map(([id, d]) => ({ id, ...d }));
+        list = Object.entries(s.customers).map(([id, d]) => ({ id, ...d }));
+    } else {
+        const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const snap = await getDocs(collection(db(), 'customers'));
+        list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Sync cloud data back to local storage so "Local Storage also" is always updated
+        const s = LOCAL.get();
+        list.forEach(c => {
+            s.customers[c.id] = c;
+        });
+        LOCAL.save(s);
     }
-    const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-    const snap = await getDocs(collection(db(), 'customers'));
-    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // Sync cloud data back to local storage so "Local Storage also" is always updated
-    const s = LOCAL.get();
-    list.forEach(c => {
-        s.customers[c.id] = c;
-    });
-    LOCAL.save(s);
+    const activeList = [];
+    const now = new Date().toISOString();
 
-    return list;
+    for (const c of list) {
+        if (c.marked_for_deletion && c.delete_scheduled_at) {
+            if (now >= c.delete_scheduled_at) {
+                // Time to physically delete
+                await deleteCustomer(c.id).catch(err => console.error("Auto delete failed", err));
+                continue; // don't add to returned list
+            } else {
+                // In the 15-day waiting period, hide from everywhere
+                continue;
+            }
+        }
+        activeList.push(c);
+    }
+
+    return activeList;
 }
 
 export async function getCustomer(id) {
@@ -153,6 +172,10 @@ export async function saveDailyRecord(customerId, date, data) {
         const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
         await setDoc(doc(db(), 'customers', customerId, 'daily_records', date), { date, ...data }, { merge: true });
     }
+
+    // 3. Refresh the monthly payment history summary
+    const [y, m] = date.split('-').map(Number);
+    await updateMonthlyPaymentHistory(customerId, y, m).catch(console.error);
 }
 
 export async function getDailyRecord(customerId, date) {
@@ -208,8 +231,13 @@ export async function recordPayment(customerId, paymentData) {
             total_balance: fs.increment(-parseFloat(amount)),
         });
     }
+
+    // 3. Refresh the monthly payment history summary for the month the payment covers
+    await updateMonthlyPaymentHistory(customerId, year, month).catch(console.error);
+
     return payId;
 }
+
 
 export async function getPayments(customerId, year, month) {
     if (isDemoMode()) {
@@ -286,21 +314,33 @@ export async function getLifetimeStats(customerId) {
 }
 
 // ─── Balance Aggregates ──────────────────────────────────
-/** Sum all delivery revenue and payments BEFORE a specific ISO date */
+/** Sum all delivery revenue and payments BEFORE a specific ISO date.
+ *  Payments are filtered by their ATTRIBUTION month/year (not physical date),
+ *  so a payment made today for last month's due correctly reduces prevBalance. */
 export async function getAggregatesBeforeDate(customerId, beforeDate) {
     let allRecords = [], allPayments = [];
+
+    // Parse beforeDate into year/month for attribution-based filtering
+    const [beforeYear, beforeMonth] = beforeDate.split('-').map(Number);
+
+    /** Returns true if a payment's attributed month/year is before the period */
+    function isPaymentBeforePeriod(p) {
+        if (p.year && p.month) {
+            return p.year < beforeYear || (p.year === beforeYear && p.month < beforeMonth);
+        }
+        // Fallback: use physical date if year/month missing
+        const d = p.date || p.created_at || '0000-00-00';
+        return d < beforeDate;
+    }
 
     if (isDemoMode()) {
         const s = LOCAL.get();
         allRecords = Object.values(s.records?.[customerId] || {}).filter(r => r.date < beforeDate);
-        allPayments = Object.values(s.payments?.[customerId] || {}).filter(p => {
-            const d = p.date || p.created_at || '0000-00-00';
-            return d < beforeDate;
-        });
+        allPayments = Object.values(s.payments?.[customerId] || {}).filter(isPaymentBeforePeriod);
     } else {
         const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
 
-        // 1. Records before date
+        // 1. Records before date (date-keyed, simple range query)
         const rQ = fs.query(
             fs.collection(db(), 'customers', customerId, 'daily_records'),
             fs.where('date', '<', beforeDate)
@@ -308,18 +348,107 @@ export async function getAggregatesBeforeDate(customerId, beforeDate) {
         const rSnap = await fs.getDocs(rQ);
         allRecords = rSnap.docs.map(d => d.data());
 
-        // 2. Payments before date - this is trickier because payments use year/month mostly
-        // but we also store 'date' in YYYY-MM-DD.
-        const pQ = fs.query(
-            fs.collection(db(), 'customers', customerId, 'payments'),
-            fs.where('date', '<', beforeDate)
+        // 2. Fetch ALL payments and filter client-side by attribution month/year.
+        //    This avoids composite Firestore indexes. Per-customer payment counts
+        //    are small so this is fast and safe.
+        const pSnap = await fs.getDocs(
+            fs.collection(db(), 'customers', customerId, 'payments')
         );
-        const pSnap = await fs.getDocs(pQ);
-        allPayments = pSnap.docs.map(d => d.data());
+        allPayments = pSnap.docs.map(d => d.data()).filter(isPaymentBeforePeriod);
     }
 
     const totalRevenue = allRecords.reduce((s, r) => s + (parseFloat(r.daily_amount) || 0), 0);
     const totalPaid = allPayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
 
     return { totalRevenue, totalPaid, balance: totalRevenue - totalPaid };
+}
+
+
+
+// ─── Monthly Payment History Summary ─────────────────────
+/**
+ * Compute and write/update a YYYY-MM summary document to:
+ *   customers/{customerId}/paymentHistory/{YYYY-MM}
+ *
+ * Fields written:
+ *   month, year, periodKey (YYYY-MM),
+ *   milkQuantity, ratePerLiter, totalAmount,
+ *   paidAmount, dueAmount,
+ *   paymentMethod, lastPaymentDate, status
+ */
+export async function updateMonthlyPaymentHistory(customerId, year, month) {
+    // Fetch daily records for the month
+    const records = await getDailyRecords(customerId, year, month).catch(() => []);
+    // Fetch payments for the month
+    const payments = await getPayments(customerId, year, month).catch(() => []);
+
+    const milkQuantity = records.reduce((s, r) => s + (parseFloat(r.total_litres) || 0), 0);
+    // Use the rate stored on the most recent record, or fall back to 0
+    const latestRecord = records.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+    const ratePerLiter = parseFloat(latestRecord?.rate_per_litre || 0);
+
+    const totalAmount = records.reduce((s, r) => s + (parseFloat(r.daily_amount) || 0), 0);
+    const paidAmount = payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+    const dueAmount = Math.max(0, totalAmount - paidAmount);
+
+    // Determine status
+    let status = 'Due';
+    if (dueAmount <= 0 && totalAmount > 0) status = 'Paid';
+    else if (paidAmount > 0 && dueAmount > 0) status = 'Partially Paid';
+
+    // Last payment info
+    const lastPayment = payments.sort((a, b) =>
+        (b.date || '').localeCompare(a.date || '')
+    )[0];
+    const paymentMethod = lastPayment?.method || null;
+    const lastPaymentDate = lastPayment?.date || null;
+
+    const periodKey = `${year}-${String(month).padStart(2, '0')}`;
+    const summary = {
+        periodKey,
+        month,
+        year,
+        milkQuantity: parseFloat(milkQuantity.toFixed(2)),
+        ratePerLiter,
+        totalAmount: parseFloat(totalAmount.toFixed(2)),
+        paidAmount: parseFloat(paidAmount.toFixed(2)),
+        dueAmount: parseFloat(dueAmount.toFixed(2)),
+        paymentMethod,
+        lastPaymentDate,
+        status,
+        updatedAt: new Date().toISOString(),
+    };
+
+    // Save locally under a paymentHistory key
+    const s = LOCAL.get();
+    if (!s.paymentHistory) s.paymentHistory = {};
+    if (!s.paymentHistory[customerId]) s.paymentHistory[customerId] = {};
+    s.paymentHistory[customerId][periodKey] = summary;
+    LOCAL.save(s);
+
+    // Save to Firebase
+    if (!isDemoMode()) {
+        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        await setDoc(
+            doc(db(), 'customers', customerId, 'paymentHistory', periodKey),
+            summary,
+            { merge: true }
+        );
+    }
+
+    return summary;
+}
+
+/** Fetch a specific month's payment history summary */
+export async function getMonthlyPaymentHistory(customerId, year, month) {
+    const periodKey = `${year}-${String(month).padStart(2, '0')}`;
+
+    if (isDemoMode()) {
+        const s = LOCAL.get();
+        return s.paymentHistory?.[customerId]?.[periodKey] || null;
+    }
+
+    const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const snap = await getDoc(doc(db(), 'customers', customerId, 'paymentHistory', periodKey));
+    return snap.exists() ? snap.data() : null;
 }
