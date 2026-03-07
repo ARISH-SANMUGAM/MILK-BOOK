@@ -10,7 +10,7 @@ import {
     initDB, getCustomers, saveCustomer, deleteCustomer,
     getDailyRecords, saveDailyRecord, getDailyRecord,
     recordPayment, getSettings, saveSettings, getPayments, deleteMonthPayments,
-    getLifetimeStats, getLocalData, getAggregatesBeforeDate,
+    getLifetimeStats, getLocalData,
     updateMonthlyPaymentHistory, getMonthlyPaymentHistory
 } from './db.js';
 import { SEED_CUSTOMERS } from './seed-data.js';
@@ -21,7 +21,7 @@ import {
 import { downloadCustomerCSV, downloadAllCSV, generateIndividualPDF, generateSummaryPDF } from './reports.js';
 import { initDriveSync } from './drive-sync.js';
 
-const WHATSAPP_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:30px;height:30px;"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>`;
+const WHATSAPP_SVG = `<svg viewBox="0 0 24 24" fill="#25D366" xmlns="http://www.w3.org/2000/svg" style="width:30px;height:30px;"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>`;
 const CALL_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:24px;height:24px;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
 
 /* ═══════════════════════════════════════════
@@ -130,13 +130,32 @@ async function boot() {
 
 async function checkAndSeedData() {
     try {
-        const customers = await getCustomers();
-        console.log(`📡 Cloud Sync: Checking customers... Found ${customers.length} on server.`);
+        // Fetch ALL customers including those marked for deletion or hidden
+        const rawList = await getCustomers(true);
+        console.log(`📡 Cloud Sync: Absolute check. Found ${rawList.length} in DB.`);
 
+        const seedNames = SEED_CUSTOMERS.map(s => s.name.trim().toLowerCase());
+
+        // 1. NUKE anything not in the 3-member seed list
+        let deletedCount = 0;
+        for (const c of rawList) {
+            const cleanName = (c.name || "").trim().toLowerCase();
+            if (!seedNames.includes(cleanName)) {
+                console.log(`🗑️ NUKE: ${c.name} is not in the allowed 3-member list. Deleting...`);
+                await deleteCustomer(c.id);
+                deletedCount++;
+            }
+        }
+
+        // 2. Refresh list after deletions
+        const currentInDb = await getCustomers();
+
+        // 3. Ensure all 3 seed customers exist
         let addedCount = 0;
         for (const item of SEED_CUSTOMERS) {
-            const exists = customers.some(c => c.name === item.name);
+            const exists = currentInDb.some(c => (c.name || "").trim().toLowerCase() === item.name.trim().toLowerCase());
             if (!exists) {
+                console.log(`➕ Adding missing seed: ${item.name}`);
                 await saveCustomer({
                     name: item.name,
                     phone: item.phone,
@@ -148,65 +167,46 @@ async function checkAndSeedData() {
             }
         }
 
-        if (addedCount > 0) {
-            console.log(`✅ Success: Pushed ${addedCount} new customers to your Cloud Database.`);
+        if (addedCount > 0 || deletedCount > 0) {
+            console.log(`✅ Sync Complete: Added ${addedCount}, Purged ${deletedCount}.`);
             state.customers = await getCustomers();
         } else {
-            console.log("ℹ️ Cloud Database is already up to date.");
+            console.log("ℹ️ Database is clean and limited to the 3 allowed members.");
         }
     } catch (e) {
-        console.error("❌ Sync Error: Could not push data. Check your Firestore Rules or Internet connection.", e);
+        console.error("❌ Sync Error", e);
     }
 }
 
-async function manualPushToFirebase() {
+async function forceCloudNuke() {
     const btn = document.getElementById('manualPushBtn');
     if (btn) {
         btn.disabled = true;
-        btn.textContent = "⏳ Pushing to Firestore...";
+        btn.innerHTML = "⏳ Purging & Syncing...";
     }
 
     try {
-        console.log("🚀 Manual Sync: Starting push...");
-        // 1. Get current local state
+        console.log("🚀 Absolute Nuke Triggered: Clearing local memory and forcing server limit.");
+
+        // 1. Wipe local customer memory entirely to stop 're-seeding' from old data
         const s = getLocalData();
-        const localCustomers = Object.entries(s.customers || {}).map(([id, data]) => ({ id, ...data }));
+        s.customers = {};
+        LOCAL.save(s);
 
-        // 2. Get current Firestore state
-        const cloudCustomers = await getCustomers();
-        console.log(`📊 Current Status: Local=${localCustomers.length} | Cloud=${cloudCustomers.length}`);
+        // 2. Run the aggressive cloud sync (which nukes non-allowed IDs on server)
+        await checkAndSeedData();
 
-        let pushedCount = 0;
-        for (const localCust of localCustomers) {
-            // Check if this customer (by name) exists in cloud
-            const exists = cloudCustomers.some(c => c.name === localCust.name);
-            if (!exists) {
-                console.log(`⬆️ Pushing: ${localCust.name}`);
-                await saveCustomer({
-                    name: localCust.name,
-                    phone: localCust.phone || "",
-                    address: localCust.address || "",
-                    default_qty: localCust.default_qty || 1,
-                    total_balance: localCust.total_balance || 0
-                });
-                pushedCount++;
-            }
-        }
+        // 3. Force re-render
+        renderCustomerList(state.customers);
 
-        if (pushedCount > 0) {
-            alert(`✅ Successfully pushed ${pushedCount} members to Firestore!`);
-            state.customers = await getCustomers();
-            renderCustomerList(state.customers);
-        } else {
-            alert("ℹ️ Your cloud database is already up-to-date with your local data.");
-        }
+        alert("✅ DELETED: Your database and local memory are now wiped clean of everyone except the 3 specific members.");
     } catch (e) {
-        console.error("❌ Push Failed", e);
-        alert("❌ Push failed. Check your internet connection or Firestore rules.");
+        console.error("❌ Nuke Failed", e);
+        alert("❌ Purge failed. Check internet.");
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = "🚀 Push to Firestore Now";
+            btn.innerHTML = "🚀 Force Cloud Sync (3 ONLY)";
         }
     }
 }
@@ -292,30 +292,15 @@ async function loadDashboard() {
         const customers = await getCustomers();
         state.customers = customers;
         const d_str = dateToString(d);
-        let enteredCount = 0, pendingCount = 0;
 
         const enriched = await Promise.all(customers.map(async c => {
             const rec = await getDailyRecord(c.id, d_str).catch(() => null);
 
             const mQty = rec?.morning_qty || 0;
             const eQty = rec?.evening_qty || 0;
-            const hasRecord = rec !== null;
-
-            // Session-based progress stats
-            const sQty = sess === 'm' ? mQty : eQty;
-            const isEntered = sQty > 0;
-
-            if (isEntered) enteredCount++;
-            else pendingCount++;
-
-            // Card status for visual indicators (Green for entered, Amber/Red for pending)
-            const status = isEntered ? 'done' : 'pending';
 
             return {
                 ...c,
-                status,
-                isSessionEntered: isEntered,
-                hasTodayEntry: status === 'done',
                 session: {
                     litres: { m: mQty, e: eQty },
                     status: { m: mQty > 0, e: eQty > 0 }
@@ -323,20 +308,36 @@ async function loadDashboard() {
             };
         }));
 
+        // Calculate counts AFTER mapping to avoid race conditions
+        let enteredCount = 0, pendingCount = 0;
+        const processed = enriched.map(c => {
+            const sQty = sess === 'm' ? c.session.litres.m : c.session.litres.e;
+            const isEntered = sQty > 0;
+
+            if (isEntered) enteredCount++;
+            else pendingCount++;
+
+            return {
+                ...c,
+                isSessionEntered: isEntered,
+                status: isEntered ? 'done' : 'pending'
+            };
+        });
+
         // Sort: Pending (not entered) first
-        enriched.sort((a, b) => {
+        processed.sort((a, b) => {
             if (a.isSessionEntered === b.isSessionEntered) return 0;
             return a.isSessionEntered ? 1 : -1;
         });
 
-        state.customers = enriched;
+        state.customers = processed;
 
         const total = customers.length;
         if ($('statTotal')) $('statTotal').textContent = total;
         if ($('statEntered')) $('statEntered').textContent = enteredCount;
         if ($('statPending')) $('statPending').textContent = pendingCount;
 
-        renderCustomerList(enriched);
+        renderCustomerList(processed);
     } catch (e) {
         console.error(e);
         $('customerListContainer').innerHTML = `<div class="empty-state">⚠️ Error loading data</div>`;
@@ -421,6 +422,10 @@ function openEntryPage(customerId) {
     if (!cust) return;
     state.currentCustomer = cust;
     state.entryDate = new Date();
+    // Synchronize currentMonth/Year with entry context
+    state.currentMonth = state.entryDate.getMonth() + 1;
+    state.currentYear = state.entryDate.getFullYear();
+
     // Default entry page session to dashboard session
     state.entrySession = state.dashSession || (new Date().getHours() < 12 ? 'm' : 'e');
 
@@ -603,6 +608,7 @@ async function performSave(isAuto = false) {
             await loadDashboard();
             setTimeout(() => showPage('page-dashboard'), 400);
         }
+        invalidateReportCache(); // Invalidate cache on successful save
         renderEntryHistory(); // Refresh history on current page
     } catch (err) {
         if (isAuto) {
@@ -711,73 +717,93 @@ async function confirmPayment() {
         const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
         const currentBill = Math.max(0, totals.totalAmount - paidAmt);
 
-        // 2. Calculate old due
-        const prev = await getAggregatesBeforeDate(cust.id, dateStr);
-        const oldDue = Math.max(0, (prev.totalRevenue || 0) - (prev.totalPaid || 0));
-
         let remainingPayment = amt;
         const method = $('paymentMethod').value;
         const note = $('paymentNote').value;
 
-        // First: reduce the current month bill
-        if (currentBill > 0 && remainingPayment > 0) {
-            const payForCurrent = Math.min(currentBill, remainingPayment);
-            await recordPayment(cust.id, {
-                amount: payForCurrent,
-                method: method,
-                note: note || (remainingPayment < amt ? 'Current bill portion collected' : ''),
-                date: today,
-                month: rMonth,
-                year: rYear,
-            });
-            remainingPayment -= payForCurrent;
-        }
-
-        // Then: reduce the old due amount
-        if (oldDue > 0 && remainingPayment > 0) {
-            const payForOld = Math.min(oldDue, remainingPayment);
-            const oldMonth = rMonth === 1 ? 12 : rMonth - 1;
-            const oldYear = rMonth === 1 ? rYear - 1 : rYear;
-            await recordPayment(cust.id, {
-                amount: payForOld,
-                method: method,
-                note: note || 'Old due portion collected',
-                date: today,
-                month: oldMonth,
-                year: oldYear,
-            });
-            remainingPayment -= payForOld;
-        }
-
-        // If there's still an amount left (overpayment / advance), add it to current month
-        if (remainingPayment > 0) {
-            await recordPayment(cust.id, {
-                amount: remainingPayment,
-                method: method,
-                note: note || 'Advance / Overpayment',
-                date: today,
-                month: rMonth,
-                year: rYear,
-            });
-        }
+        // Simply log the entire amount for the selected month natively. No carry-over or split splits logic needed anymore.
+        await recordPayment(cust.id, {
+            amount: amt,
+            method: method,
+            note: note || '',
+            date: today,
+            month: rMonth,
+            year: rYear,
+        });
 
         $('paymentAmount').value = '';
         $('paymentNote').value = '';
         closeModal('paymentModal');
         toast(`Payment of ${formatCurrency(amt)} recorded ✓`, 'success');
 
+        // Invalidate cache since data has changed
+        invalidateReportCache();
+
         // Refresh the entry history to reflect the new payment
         await renderEntryHistory();
 
-        // Optional: Also reload reports if in the background
-        if (typeof loadReportsPage === 'function' && $('page-reports').style.display === 'block') {
-            loadReportsPage();
+        // Refresh payment history in modal
+        await renderPaymentHistory();
+
+        // Refresh reports if current page is reports
+        if (!document.getElementById('page-reports').classList.contains('hidden')) {
+            loadReportsPage(true);
         }
     } catch (err) {
         toast('Failed: ' + err.message, 'error');
     } finally {
         btn.disabled = false;
         btn.innerHTML = '✅ Confirm Payment';
+    }
+}
+
+async function renderPaymentHistory(containerId = 'paymentHistoryList', customerId = null) {
+    const custId = customerId || state.currentCustomer?.id;
+    const list = document.getElementById(containerId);
+    if (!custId || !list) return;
+
+    const isQuickView = containerId === 'qpHistoryList';
+
+    try {
+        const allPayments = await getPayments(custId);
+
+        // Sort by actual payment date (field 'date') descending
+        allPayments.sort((a, b) => b.date.localeCompare(a.date));
+
+        // Limit to 10 most recent (or 5 for quick view)
+        const limit = isQuickView ? 5 : 10;
+        const recentPayments = allPayments.slice(0, limit);
+
+        if (recentPayments.length === 0) {
+            list.innerHTML = `<div class="history-placeholder">No recent payments.</div>`;
+            return;
+        }
+
+        list.innerHTML = recentPayments.map(p => {
+            const d = new Date(p.date + 'T00:00:00');
+            const dayNum = d.getDate();
+            const monthName = d.toLocaleString('en-IN', { month: 'short' });
+
+            if (isQuickView) {
+                return `
+                    <div class="quick-pay-history-item">
+                        <span class="quick-pay-history-date">${dayNum} ${monthName}</span>
+                        <span class="quick-pay-history-amt">${formatCurrency(p.amount)}</span>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="payment-history-item">
+                    <span class="payment-history-date">${dayNum} ${monthName}</span>
+                    <span class="payment-history-amt">${formatCurrency(p.amount)}</span>
+                    <span class="payment-history-method">${p.method || 'cash'}</span>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error("Error loading payment history:", err);
+        list.innerHTML = `<div class="history-placeholder">Error.</div>`;
     }
 }
 
@@ -820,15 +846,7 @@ async function buildReportText(type) {
         `• Paid: ${formatCurrency(paidAmt)}`,
     ];
 
-    const prev = await getAggregatesBeforeDate(cust.id, type === 'daily' ? dateToString(state.dashDate) : (type === 'weekly' ? dateToString(new Date(new Date().setDate(new Date().getDate() - 7))) : `${y}-${String(m).padStart(2, '0')}-01`));
-    const prevBalance = Math.max(0, prev.balance);
-
-    if (prevBalance > 0) {
-        lines.push(`• Old Balance: ${formatCurrency(prevBalance)}`);
-        lines.push(`• *Total Due: ${formatCurrency(outstanding + prevBalance)}*`);
-    } else {
-        lines.push(`• *Outstanding: ${formatCurrency(outstanding)}*`);
-    }
+    lines.push(`• *Remaining Balance: ${formatCurrency(outstanding)}*`);
 
     if (settings.address) lines.push(``, `📍 *Address:* ${settings.address}`);
 
@@ -879,10 +897,6 @@ async function sendWhatsApp(type) {
 
     const label = type === 'daily' ? 'Daily Report' : type === 'weekly' ? 'Weekly Report' : `${getMonthName(m)} ${y} Report`;
 
-    // Get prev balance for the PDF too
-    const prevData = await getAggregatesBeforeDate(cust.id, range.start);
-    const prevBalance = Math.max(0, prevData.balance);
-
     try {
         const pdfFile = await generateIndividualPDF(cust, records, {
             periodLabel: label,
@@ -891,7 +905,6 @@ async function sendWhatsApp(type) {
             paymentQr: state.paymentQr,
             businessName: settings.businessName,
             address: settings.address,
-            prevBalance: prevBalance,
             output: 'file'
         });
 
@@ -936,14 +949,33 @@ function getSelectedReportType() {
 }
 
 /* ═══════════════════════════════════════════
-   REPORTS PAGE
-═══════════════════════════════════════════ */
+   CACHE MANAGEMENT
+ ═══════════════════════════════════════════ */
+function invalidateReportCache() {
+    state.lastReportParams = null;
+    state.lastReportData = null;
+    console.log("♻️ Report cache invalidated");
+}
+
 /* ═══════════════════════════════════════════
    REPORTS PAGE
-═══════════════════════════════════════════ */
-async function loadReportsPage() {
-    showPage('page-reports');
+ ═══════════════════════════════════════════ */
+async function loadReportsPage(forceRefresh = true) {
     const { reportMonth: m, reportYear: y, reportPeriod: period, reportDate: d } = state;
+    const dateRange = getReportDateRange(period);
+    const paramsKey = `${period}-${dateRange.start}-${dateRange.end}`;
+
+    // 1. Check Cache
+    if (!forceRefresh && state.lastReportParams === paramsKey && state.lastReportData) {
+        showPage('page-reports');
+        renderReportRows(state.lastReportData);
+        return;
+    }
+
+    showPage('page-reports');
+    // Clear selections on fresh load to avoid "ghost" selections
+    state.reportSelections.clear();
+    updateReportUI();
 
     // Update Top Navigator Label
     let label = '';
@@ -957,7 +989,7 @@ async function loadReportsPage() {
         $('reportMonthPicker').type = 'date';
     } else if (period === 'year') {
         label = `${y}`;
-        $('reportMonthPicker').type = 'number'; // Fallback or custom
+        $('reportMonthPicker').type = 'number';
     } else {
         label = `${getMonthName(m)} ${y}`;
         $('reportMonthPicker').type = 'month';
@@ -973,100 +1005,128 @@ async function loadReportsPage() {
     };
     $('reportHeroTitle').textContent = titles[period] || 'Summary';
 
-    // Handle Period Button Active States
     document.querySelectorAll('.report-period-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.period === period);
     });
 
-    try {
-        const customers = state.customers;
-        let totalLitres = 0, totalRevenue = 0, totalCashCollectedPeriod = 0, totalOldDuesCollectedPeriod = 0, totalDue = 0;
+    const list = $('reportCustomerList');
+    // Show premium skeleton/loading
+    list.innerHTML = `
+        <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+            <div class="spinner" style="margin: 0 auto 15px;"></div>
+            <p style="font-weight: 600; font-size: 0.9rem;">Fetching report data...</p>
+            <p style="font-size: 0.75rem; opacity: 0.7;">This may take a moment</p>
+        </div>
+    `;
 
-        const dateRange = getReportDateRange(period);
+    try {
+        if (!state.customers.length) {
+            state.customers = await getCustomers();
+        }
+        const customers = state.customers;
         const [reportYear, reportMonth] = dateRange.start.split('-').map(Number);
 
         const dataRows = await Promise.all(customers.map(async c => {
-            const records = await getRangeRecords(c.id, dateRange.start, dateRange.end);
+            const [records, allCustomerPayments] = await Promise.all([
+                getRangeRecords(c.id, dateRange.start, dateRange.end),
+                getPayments(c.id).catch(() => [])
+            ]);
 
-            // For calculating balances:
-            // Fetch payments attributed to THIS period, regardless of when they were physically paid
-            let attributedPayments = [];
-            for (let y = reportYear; y <= Number(dateRange.end.split('-')[0]); y++) {
-                let startM = y === reportYear ? reportMonth : 1;
-                let endM = y === Number(dateRange.end.split('-')[0]) ? Number(dateRange.end.split('-')[1]) : 12;
-                for (let m = startM; m <= endM; m++) {
-                    const monthPays = await getPayments(c.id, y, m).catch(() => []);
-                    attributedPayments = [...attributedPayments, ...monthPays];
-                }
-            }
-
-            // For calculating cash flow (Hero panel):
-            // Fetch all payments PHYSICALLY made during this period
-            const allCustomerPayments = await getPayments(c.id).catch(() => []); // if year/month omitted, it fetches all
+            // 1. All payments physically received in this range (for Summary "Collected")
             const physicalPaymentsPeriod = allCustomerPayments.filter(p => {
-                const d = p.created_at?.toDate ? p.created_at.toDate() : new Date(p.date || p.created_at);
-                const dStr = dateToString(d);
-                return dStr >= dateRange.start && dStr <= dateRange.end;
+                const d = p.date || p.created_at || '0000-00-00';
+                return d >= dateRange.start && d <= dateRange.end;
             });
+            const cashCollected = physicalPaymentsPeriod.reduce((s, p) => s + (p.amount || 0), 0);
 
-            // 1. Calculate Balances
+            // 2. Payments attributed to THIS range (for row status: "Pending" vs "Collected")
+            const attributedPayments = allCustomerPayments.filter(p => {
+                const pDate = (p.year && p.month) ? `${p.year}-${String(p.month).padStart(2, '0')}-01` : '0000-00-00';
+                return pDate >= dateRange.start && pDate <= dateRange.end;
+            });
             const paidAmt = attributedPayments.reduce((s, p) => s + (p.amount || 0), 0);
+
             const totals = calcMonthlyTotals(records, state.settings.rate);
 
-            // Previous Balance Calculation
-            const prev = await getAggregatesBeforeDate(c.id, dateRange.start);
-            const prevBalance = Math.max(0, (prev.totalRevenue || 0) - (prev.totalPaid || 0));
+            // 1. Current Bill (Sum of daily amounts in this range)
+            const currentBill = Math.round(totals.totalAmount || 0);
 
-            const currentOutstanding = totals.totalAmount - paidAmt;
-            const outstanding = Math.max(0, prevBalance + currentOutstanding);
+            // 2. Paid for this period (Capped at bill as requested)
+            const periodPaid = Math.min(paidAmt, currentBill);
+            const periodPending = Math.max(0, currentBill - paidAmt);
 
-            // 2. Calculate Cash Flow for Hero Panel
-            const cashCollected = physicalPaymentsPeriod.reduce((s, p) => s + (p.amount || 0), 0);
-            const oldDuesCollected = physicalPaymentsPeriod.filter(p => {
-                // Determine if this payment was attributed to a period BEFORE the report start date
-                if (p.year && p.month) {
-                    return p.year < reportYear || (p.year === reportYear && p.month < reportMonth);
-                }
-                const pDate = p.date || p.created_at || '0000-00-00';
-                return pDate < dateRange.start;
-            }).reduce((s, p) => s + (p.amount || 0), 0);
+            // 3. Lifetime Account Balance (from customer object)
+            const accountBalance = c.total_balance ?? 0; // Assuming c.total_balance is tracked (Revenue - Paid)
 
-            totalLitres += totals.totalLitres;
-            totalRevenue += totals.totalAmount;
-            totalCashCollectedPeriod += cashCollected;
-            totalOldDuesCollectedPeriod += oldDuesCollected;
-            totalDue += outstanding;
-
-            return { ...c, totals, paidAmt, prevBalance, outstanding, records };
+            return {
+                ...c,
+                totals,
+                currentBill,
+                periodPaid,
+                periodPending,
+                paidAmt, // Total attributed for this period (actual)
+                accountBalance,
+                records,
+                payments: physicalPaymentsPeriod
+            };
         }));
 
-        state.lastReportData = dataRows; // Store for bulk actions
+        // Calculate Totals AFTER mapping
+        let totalLitres = 0, totalCollectedThisMonth = 0, totalPendingThisMonth = 0;
+
+        dataRows.forEach(r => {
+            totalLitres += r.totals.totalLitres;
+            totalCollectedThisMonth += r.periodPaid;
+            totalPendingThisMonth += r.periodPending;
+        });
+
+        state.lastReportParams = paramsKey;
+        state.lastReportData = dataRows;
+
+        const roundedRevenue = Math.round(totalCollectedThisMonth || 0);
+        const safeTotalDue = Math.round(totalPendingThisMonth || 0);
 
         $('reportTotalLitres').textContent = `${totalLitres.toFixed(1)}L`;
-        $('reportTotalRevenue').textContent = formatCurrency(totalCashCollectedPeriod);
-        const oldDuesEl = document.getElementById('reportTotalOldDues');
-        if (oldDuesEl) oldDuesEl.textContent = formatCurrency(totalOldDuesCollectedPeriod);
-        const dueEl = $('reportTotalDue');
-        dueEl.textContent = formatCurrency(totalDue);
-        dueEl.closest('.report-stat').classList.toggle('report-stat--due-active', totalDue > 0);
+        $('reportTotalRevenue').textContent = '₹' + roundedRevenue.toLocaleString('en-IN');
+        $('reportTotalDue').textContent = '₹' + safeTotalDue.toLocaleString('en-IN');
 
-        const list = $('reportCustomerList');
+        const dueBox = $('reportTotalDue').closest('.report-stat');
+        if (dueBox) {
+            dueBox.classList.toggle('report-stat--due-active', safeTotalDue > 0);
+        }
+
         if (!dataRows.length) {
             list.innerHTML = `<div class="empty-state">No customers found</div>`;
             return;
         }
 
-        const now = new Date();
-        const isPastMonth = y < now.getFullYear() || (y === now.getFullYear() && m < (now.getMonth() + 1));
+        renderReportRows(dataRows);
 
-        list.innerHTML = dataRows.map(r => {
-            const initial = (r.name || '?')[0].toUpperCase();
-            const isPaid = r.outstanding <= 0;
-            const statusClass = isPaid ? 'is-paid' : 'is-due';
-            const isSelected = state.reportSelections.has(r.id);
+    } catch (e) {
+        console.error(e);
+        const listEl = $('reportCustomerList');
+        listEl.innerHTML = `<div class="empty-state">Error loading report: ${e.message}</div>`;
+    }
+}
 
-            return `
-      <div class="report-row ${isSelected ? 'is-selected' : ''}" data-id="${r.id}" style="position:relative;">
+function renderReportRows(dataRows) {
+    const list = $('reportCustomerList');
+    const period = state.reportPeriod;
+    const y = state.reportYear;
+    const m = state.reportMonth;
+    const dateRange = getReportDateRange(period);
+    const now = new Date();
+    const isPastMonth = (y < now.getFullYear()) || (y === now.getFullYear() && m < now.getMonth() + 1);
+
+    list.innerHTML = dataRows.map(r => {
+        const isSelected = state.reportSelections.has(r.id);
+        const initial = (r.name || '?')[0].toUpperCase();
+
+        const isPaid = r.accountBalance >= 0;
+        const statusClass = isPaid ? 'is-paid' : 'is-due';
+
+        return `
+      <div class="report-row ${isSelected ? 'is-selected' : ''}" data-id="${r.id}">
         <div class="report-checkbox-wrap">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
         </div>
@@ -1082,49 +1142,45 @@ async function loadReportsPage() {
                     </div>
                 </div>
                 <div class="report-row-actions">
-                    <button class="report-mini-whatsapp" data-id="${r.id}" title="Send PDF via WhatsApp" style="color:#25D366;">
+                    <button class="report-mini-whatsapp" data-id="${r.id}" title="Send PDF via WhatsApp">
                         ${WHATSAPP_SVG.replace('width:30px;height:30px;', 'width:20px;height:20px;')}
                     </button>
+                    ${r.phone ? `
+                    <a href="tel:${r.phone}" class="report-mini-call" title="Call Customer">
+                        ${CALL_ICON_SVG.replace('width:24px;height:24px;', 'width:18px;height:18px;')}
+                    </a>` : ''}
                 </div>
             </div>
             <div class="report-row-data">
-                <div class="data-tag">
+                <div class="data-tag clickable-tag" data-id="${r.id}" data-action="litres" title="View milk records">
                     <span class="data-tag-val">${r.totals.totalLitres}L</span>
                     <span class="data-tag-lbl">Litres</span>
                 </div>
-                <div class="data-tag">
-                    <span class="data-tag-val">${formatCurrency(r.totals.totalAmount)}</span>
-                    <span class="data-tag-lbl">Bill</span>
+                <div class="data-tag clickable-tag" data-id="${r.id}" data-action="bill" title="View bill calculation">
+                    <span class="data-tag-val">₹${r.currentBill.toLocaleString('en-IN')}</span>
+                    <span class="data-tag-lbl">Current Bill</span>
                 </div>
-                ${r.prevBalance > 0 ? `
-                <div class="data-tag">
-                    <span class="data-tag-val" style="color:#ef4444; font-weight:bold;">${formatCurrency(r.prevBalance)}</span>
-                    <span class="data-tag-lbl">Old Due</span>
-                </div>
-                ` : ''}
+
                 ${((period === 'month' && isPastMonth) || (period === 'year' && y < now.getFullYear())) ? `
-                <button class="report-status-badge ${statusClass}" 
-                    data-pay-id="${r.id}" 
-                    data-pay-name="${r.name}" 
-                    data-pay-outstanding="${r.outstanding.toFixed(0)}"
-                    data-pay-prev-balance="${r.prevBalance.toFixed(0)}"
-                    data-pay-current-due="${Math.max(0, r.totals.totalAmount - r.paidAmt).toFixed(0)}"
+                <button class="report-status-badge ${r.periodPending === 0 ? 'is-paid' : (r.periodPaid > 0 ? 'is-partial' : 'is-due')}"
+                    data-pay-id="${r.id}"
+                    data-pay-name="${r.name}"
+                    data-pay-outstanding="${r.accountBalance > 0 ? r.accountBalance.toFixed(0) : 0}"
+                    data-pay-current-due="${r.periodPending.toFixed(0)}"
                     data-pay-report-month="${m}"
                     data-pay-report-year="${y}"
-                    data-pay-paid="${isPaid ? 1 : 0}">
-                    ${isPaid ? 'Collected' : 'Pending'}
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                    data-pay-paid="${r.periodPending === 0 ? '1' : '0'}"
+                    title="${r.periodPending === 0 ? 'Payment Collected' : 'Mark as Collected'}">
+                    ${r.periodPending === 0 ? '✓ Paid' : (r.periodPaid > 0 ? '₹ Partial' : '₹ Collect')}
                 </button>
                 ` : ''}
             </div>
         </div>
       </div>`;
-        }).join('');
+    }).join('');
 
-        attachReportListeners(list);
-        updateReportUI();
-
-    } catch (e) { console.error(e); }
+    attachReportListeners(list);
+    updateReportUI();
 }
 
 function getReportDateRange(period) {
@@ -1167,39 +1223,42 @@ function getReportDateRange(period) {
 }
 
 async function getRangeRecords(custId, start, end) {
-    // Basic implementation: fetch all for involved months
     const sDate = new Date(start);
     const eDate = new Date(end);
-    let records = [];
+    const months = [];
 
-    // Simple loop for each month between start and end
     for (let y = sDate.getFullYear(); y <= eDate.getFullYear(); y++) {
         let startM = y === sDate.getFullYear() ? sDate.getMonth() + 1 : 1;
         let endM = y === eDate.getFullYear() ? eDate.getMonth() + 1 : 12;
-
         for (let m = startM; m <= endM; m++) {
-            const monthRecs = await getDailyRecords(custId, y, m).catch(() => []);
-            records = [...records, ...monthRecs];
+            months.push({ y, m });
         }
     }
-    return records.filter(r => r.date >= start && r.date <= end);
+
+    // Fetch all months in parallel
+    const results = await Promise.all(months.map(item => getDailyRecords(custId, item.y, item.m).catch(() => [])));
+    const allRecords = results.flat();
+    return allRecords.filter(r => r.date >= start && r.date <= end);
 }
 
 async function getRangePayments(custId, start, end) {
     const sDate = new Date(start);
     const eDate = new Date(end);
-    let payments = [];
+    const months = [];
 
     for (let y = sDate.getFullYear(); y <= eDate.getFullYear(); y++) {
         let startM = y === sDate.getFullYear() ? sDate.getMonth() + 1 : 1;
         let endM = y === eDate.getFullYear() ? eDate.getMonth() + 1 : 12;
-
         for (let m = startM; m <= endM; m++) {
-            const monthPays = await getPayments(custId, y, m).catch(() => []);
-            payments = [...payments, ...monthPays];
+            months.push({ y, m });
         }
     }
-    return payments.filter(p => {
+
+    // Fetch all months in parallel
+    const results = await Promise.all(months.map(item => getPayments(custId, item.y, item.m).catch(() => [])));
+    const allPayments = results.flat();
+
+    return allPayments.filter(p => {
         const d = p.created_at?.toDate ? p.created_at.toDate() : new Date(p.date || p.created_at);
         const dStr = dateToString(d);
         return dStr >= start && dStr <= end;
@@ -1266,7 +1325,6 @@ function attachReportListeners(list) {
                     id: statusBtn.dataset.payId,
                     name: statusBtn.dataset.payName,
                     outstanding: statusBtn.dataset.payOutstanding,
-                    prevBalance: statusBtn.dataset.payPrevBalance,
                     currentDue: statusBtn.dataset.payCurrentDue,
                     reportMonth: parseInt(statusBtn.dataset.payReportMonth),
                     reportYear: parseInt(statusBtn.dataset.payReportYear),
@@ -1283,9 +1341,136 @@ function attachReportListeners(list) {
                 return;
             }
 
+            // Standard Action: Open Detail Popups
+            const tagBtn = e.target.closest('.clickable-tag');
+            if (tagBtn) {
+                e.stopPropagation();
+                openReportDetailModal(id, tagBtn.dataset.action);
+                return;
+            }
+
             // Standard Action: Open Entry Page (Streamlined)
             openEntryPage(id);
         });
+    });
+}
+
+/** Details Modal for Litres/Bill/Paid Amount Tags */
+function openReportDetailModal(customerId, action) {
+    const data = state.lastReportData.find(d => d.id === customerId);
+    if (!data) return;
+
+    document.getElementById('reportDetailModal')?.remove();
+
+    const rate = state.settings.rate || 0;
+
+    const modal = document.createElement('div');
+    modal.className = 'quick-pay-overlay'; // Re-use the existing overlay class
+    modal.id = 'reportDetailModal';
+    let contentHtml = '';
+
+    if (action === 'litres') {
+        let rows = (data.records || []).filter(r => !r.no_delivery).map(r => {
+            const dateStr = formatDate(new Date(r.date), 'entry');
+            const mor = parseFloat(r.morning_qty) || 0;
+            const eve = parseFloat(r.evening_qty) || 0;
+            const qty = mor + eve;
+            return `<div class="detail-row"><span>${dateStr}</span><span style="font-weight:600;">${qty} L</span></div>`;
+        }).join('');
+
+        if (!rows) rows = '<div class="empty-state" style="padding:16px 0;">No milk deliveries logged in this period</div>';
+
+        contentHtml = `
+            <div class="quick-pay-title" style="margin-bottom: 2px;">🥛 Milk Collection</div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom: 12px; font-weight:600;">${data.name} — Total ${data.totals?.totalLitres || 0}L</div>
+            <div style="max-height: 280px; overflow-y: auto; padding-right:4px;">${rows}</div>
+        `;
+    }
+    else if (action === 'bill') {
+        const tLitres = data.totals?.totalLitres || 0;
+        const cBill = data.currentBill || 0;
+        const paidForCurrent = data.periodPaid || 0;
+        const pendingForCurrent = data.periodPending || 0;
+        const totalStatus = data.accountBalance || 0; // The actual net due
+
+        const btnHtml = totalStatus > 0
+            ? `<button class="primary-btn" style="width:100%; margin-top:16px; display:flex; gap:8px; justify-content:center; align-items:center;" onclick="document.getElementById('reportDetailModal')?.remove(); showQuickPaySheet('${customerId}', '${data.name}', ${totalStatus})">
+                  <i class="fi fi-rr-wallet"></i> Pay ₹${totalStatus.toLocaleString('en-IN')}
+               </button>`
+            : `<div style="margin-top:16px; text-align:center; color:#059669; font-weight:700; background:#d1fae5; padding:12px; border-radius:var(--r-md);">No Amount Due 🎉</div>`;
+
+        contentHtml = `
+            <div class="quick-pay-title" style="margin-bottom: 2px;">💰 Bill Details</div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom: 12px; font-weight:600;">${data.name}</div>
+            
+            <div class="detail-row"><span>Total Litres</span><span style="font-weight:700;">${tLitres} L</span></div>
+            <div class="detail-row"><span>Rate / Litre</span><span>₹${rate}</span></div>
+            <hr style="border:0; border-top:1px dashed #e2e8f0; margin:12px 0;">
+            <div class="detail-row" style="color:#111827; font-weight:600; font-size:1.1rem; border:none; padding-bottom:0;">
+                <span>Current Bill</span><span>₹${cBill.toLocaleString('en-IN')}</span>
+            </div>
+            
+            ${paidForCurrent > 0 ? `
+            <div class="detail-row" style="color:#059669; font-weight:600; padding-top:4px; border:none;">
+                <span>Monthly Collected</span><span>- ₹${paidForCurrent.toLocaleString('en-IN')}</span>
+            </div>
+            ` : ''}
+            
+            ${totalStatus > 0 ? `
+            <div class="detail-row" style="margin-top:12px; padding:8px 0; border:none;">
+                <span>Total Status</span>
+                <span class="quick-pay-amt">₹${totalStatus.toLocaleString('en-IN')}</span>
+            </div>
+            ` : ''}
+            
+            ${btnHtml}
+        `;
+    }
+    else if (action === 'paid') {
+        let rows = (data.payments || []).map(p => {
+            const dateStr = (p.date || p.created_at) ? formatDate(new Date(p.date || p.created_at), 'entry') : 'Unknown';
+            return `<div class="detail-row"><span>${dateStr}</span><span style="color:#059669; font-weight:700;">+ ₹${(p.amount || 0).toLocaleString('en-IN')}</span></div>`;
+        }).join('');
+
+        if (!rows) rows = '<div class="empty-state" style="padding:16px 0;">No payments logged in this period</div>';
+
+        const acctBal = data.accountBalance || 0;
+        const balLabel = acctBal < 0 ? `-₹${Math.abs(acctBal).toLocaleString('en-IN')} (Pending)` : (acctBal === 0 ? '₹0' : `₹${acctBal.toLocaleString('en-IN')} (Advance)`);
+        const balColor = acctBal < 0 ? '#dc2626' : '#059669';
+
+        contentHtml = `
+            <div class="quick-pay-title" style="margin-bottom: 2px;">💳 Payment History</div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom: 12px; font-weight:600;">${data.name} — Paid ₹${(data.totalPaid || 0).toLocaleString('en-IN')}</div>
+            
+            <div style="max-height: 220px; overflow-y: auto; padding-right:4px;">${rows}</div>
+            
+            <hr style="border:0; border-top:1px dashed #e2e8f0; margin:12px 0;">
+            <div class="detail-row" style="font-size:1rem; font-weight:800; color:${balColor}; border:none;">
+                <span>Account Balance</span>
+                <span>${balLabel}</span>
+            </div>
+        `;
+    }
+
+    modal.innerHTML = `
+        <div class="quick-pay-sheet" style="padding-bottom: 24px;">
+            <div class="quick-pay-handle"></div>
+            ${contentHtml}
+            <button class="btn btn-secondary quick-pay-close-btn" style="margin-top:20px;">Close Details</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    setTimeout(() => modal.classList.add('active'), 10);
+
+    const closeFn = () => {
+        modal.classList.remove('active');
+        setTimeout(() => modal.remove(), 300);
+    };
+
+    modal.querySelector('.quick-pay-close-btn').addEventListener('click', closeFn);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeFn();
     });
 }
 
@@ -1300,6 +1485,14 @@ async function shareCustomerPDF(id) {
     toast(`Generating PDF for ${d.name}...`, 'info');
 
     try {
+        const phone = (d.phone || '').replace(/\D/g, '');
+        const fullPhone = phone.length === 10 ? '91' + phone : phone;
+
+        // 1. Immediately open the WhatsApp chat window for this specific number
+        const text = await buildReportTextForData(d);
+        window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent('Please find the detailed report attached below.')}`, '_blank');
+
+        // 2. Generate and trigger the PDF Share dialog so the user can attach the file to that chat
         const pdfFile = await generateIndividualPDF(d, d.records || [], {
             periodLabel: label,
             rate: state.settings.rate,
@@ -1307,27 +1500,23 @@ async function shareCustomerPDF(id) {
             paymentQr: state.paymentQr,
             businessName: state.settings.businessName,
             address: state.settings.address,
-            prevBalance: d.prevBalance || 0,
             output: 'file'
         });
 
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-            await navigator.share({
-                files: [pdfFile],
-                title: `${d.name} Milk Report`,
-                text: `Attached is your milk report for ${label}.`
-            });
-        } else {
-            // Fallback to text WhatsApp
-            const text = await buildReportTextForData(d);
-            const phone = (d.phone || '').replace(/\D/g, '');
-            const fullPhone = phone.length === 10 ? '91' + phone : phone;
-            window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`, '_blank');
+            // Small delay to ensure the window.open has fired
+            setTimeout(async () => {
+                await navigator.share({
+                    files: [pdfFile],
+                    title: `${d.name} Milk Report`,
+                    text: `Milk Report for ${label}`
+                }).catch(e => console.log('Share cancelled or failed'));
+            }, 1000);
         }
     } catch (err) {
         if (err.name === 'AbortError') return;
         console.error(err);
-        toast('Failed to share PDF', 'error');
+        toast('Failed to prepare report', 'error');
     }
 }
 
@@ -1343,14 +1532,26 @@ function updateReportUI() {
 
 // Bulk Action Handlers
 $('reportSelectAll').addEventListener('change', (e) => {
-    if (e.target.checked) state.customers.forEach(c => state.reportSelections.add(c.id));
-    else state.reportSelections.clear();
-    loadReportsPage(); // Refresh list to show checkboxes
+    e.stopPropagation();
+    const isChecked = e.target.checked;
+    const rows = document.querySelectorAll('.report-row');
+
+    if (isChecked) {
+        rows.forEach(row => {
+            row.classList.add('is-selected');
+            if (row.dataset.id) state.reportSelections.add(row.dataset.id);
+        });
+    } else {
+        state.reportSelections.clear();
+        rows.forEach(row => row.classList.remove('is-selected'));
+    }
+    updateReportUI();
 });
 
 $('bulkCancel').addEventListener('click', () => {
     state.reportSelections.clear();
-    loadReportsPage();
+    document.querySelectorAll('.report-row').forEach(row => row.classList.remove('is-selected'));
+    updateReportUI();
 });
 
 $('bulkGeneratePdf').addEventListener('click', async () => {
@@ -1397,7 +1598,6 @@ $('bulkWhatsApp').addEventListener('click', async () => {
                     paymentQr: state.paymentQr,
                     businessName: state.settings.businessName,
                     address: state.settings.address,
-                    prevBalance: d.prevBalance || 0,
                     output: 'file'
                 });
 
@@ -1431,8 +1631,7 @@ $('bulkWhatsApp').addEventListener('click', async () => {
 async function buildReportTextForData(d) {
     const range = getReportDateRange(state.reportPeriod);
     const biz = state.settings.businessName || 'MilkBook';
-    const prevBalance = d.prevBalance || 0;
-    const totalDue = d.outstanding; // outstanding already includes prevBalance in dataRows
+    const accountBalance = d.accountBalance || 0;
 
     let text = `📦 *${biz} Delivery Report*\n\n`;
     text += `👤 *Customer:* ${d.name}\n`;
@@ -1440,26 +1639,28 @@ async function buildReportTextForData(d) {
     text += `──────────────────\n`;
     text += `🥛 *Total Qty:* ${d.totals.totalLitres}L\n`;
     text += `💰 *Current Bill:* ${formatCurrency(d.totals.totalAmount)}\n`;
+    text += `✅ *Paid Amount:* ${formatCurrency(d.totalPaid)}\n`;
 
-    if (prevBalance > 0) {
-        text += `⚠️ *Old Balance:* ${formatCurrency(prevBalance)}\n`;
-    }
+    // Account Balance
+    let balanceStr = accountBalance < 0
+        ? `-₹${Math.abs(accountBalance).toLocaleString('en-IN')} (Pending)`
+        : accountBalance === 0
+            ? `₹0`
+            : `₹${accountBalance.toLocaleString('en-IN')} (Advance)`;
 
-    text += `✅ *Paid In Period:* ${formatCurrency(d.paidAmt)}\n`;
-    text += `🚩 *Total Due:* ${formatCurrency(totalDue)}\n`;
+    text += `🚩 *Account Balance:* ${balanceStr}\n`;
     text += `──────────────────\n`;
     text += `_Sent via MilkBook Smart Management_`;
     return text;
 }
 
 /* ─── Quick Pay Sheet (from Reports) ──────────────────────── */
-function showQuickPaySheet({ id, name, outstanding, prevBalance = 0, currentDue = 0, reportMonth, reportYear, paid }) {
+function showQuickPaySheet({ id, name, outstanding, currentDue = 0, reportMonth, reportYear, paid }) {
     // Remove any existing sheet
     document.getElementById('quickPaySheet')?.remove();
 
     const isPaid = paid === '1' || Number(outstanding) <= 0;
     const amount = Number(outstanding);
-    const prevAmt = Number(prevBalance);
     const currAmt = Number(currentDue);
 
     const sheet = document.createElement('div');
@@ -1475,22 +1676,31 @@ function showQuickPaySheet({ id, name, outstanding, prevBalance = 0, currentDue 
                 <button class="btn btn-secondary quick-pay-close-btn">Cancel</button>
             ` : `
                 <div class="quick-pay-amount-row">
-                    <span class="quick-pay-lbl">Outstanding</span>
+                    <span class="quick-pay-lbl">Total Outstanding</span>
                     <span class="quick-pay-amt">${formatCurrency(amount)}</span>
                 </div>
-                ${prevAmt > 0 ? `
-                <div class="quick-pay-amount-row" style="font-size:0.8rem; opacity:0.75;">
-                    <span class="quick-pay-lbl">Incl. Old Due</span>
-                    <span class="quick-pay-amt" style="color:#ef4444;">${formatCurrency(prevAmt)}</span>
-                </div>` : ''}
-                <button class="btn btn-primary quick-pay-confirm-btn" id="qpConfirmBtn">
-                    ✅ Mark as Collected
+                <div class="quick-pay-input-wrap">
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 700;">PAYMENT AMOUNT</div>
+                    <input type="number" id="qpAmountInput" class="quick-pay-amount-input" value="${Math.round(amount)}" placeholder="Amount" />
+                </div>
+                
+                <button class="btn btn-primary quick-pay-confirm-btn" id="qpConfirmBtn" style="margin-top:16px;">
+                    ✅ Record Payment
                 </button>
                 <button class="btn btn-secondary quick-pay-close-btn">Cancel</button>
             `}
+            
+            <!-- Past Payments History -->
+            <div class="quick-pay-history">
+                <div class="quick-pay-history-title">Past Payments</div>
+                <div id="qpHistoryList" class="quick-pay-history-list">
+                    <div style="font-size:0.7rem; color:var(--text-muted);">Loading…</div>
+                </div>
+            </div>
         </div>`;
 
     document.body.appendChild(sheet);
+    renderPaymentHistory('qpHistoryList', id);
 
     // Close on backdrop tap
     sheet.addEventListener('click', (e) => {
@@ -1504,59 +1714,79 @@ function showQuickPaySheet({ id, name, outstanding, prevBalance = 0, currentDue 
     const confirmBtn = sheet.querySelector('#qpConfirmBtn');
     if (confirmBtn) {
         confirmBtn.addEventListener('click', async () => {
+            const enteredAmt = parseFloat(sheet.querySelector('#qpAmountInput')?.value);
+            if (!enteredAmt || enteredAmt <= 0) {
+                toast('Enter a valid amount', 'error');
+                return;
+            }
+
             confirmBtn.disabled = true;
             confirmBtn.textContent = 'Saving…';
             try {
-                const today = new Date().toISOString().slice(0, 10);
-                const rMonth = reportMonth || (new Date().getMonth() + 1);
-                const rYear = reportYear || new Date().getFullYear();
+                const today = todayString();
+                const rMonth = reportMonth || state.reportMonth;
+                const rYear = reportYear || state.reportYear;
 
-                // ── Step 1: Record old-due portion against the PREVIOUS period ──
-                // This ensures getAggregatesBeforeDate (filtered by attribution month)
-                // will include this payment and clear the prevBalance.
-                if (prevAmt > 0) {
+                if (enteredAmt > amount) {
+                    toast(`Amount cannot exceed outstanding ₹${amount}`, 'error');
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = '✅ Record Payment';
+                    return;
+                }
+
+                let remainingPayment = enteredAmt;
+                const prevAmt = amount - currAmt; // Total due minus current month's bill = old dues
+
+                // Priority 1: Old Dues
+                if (prevAmt > 0 && remainingPayment > 0) {
+                    const payForOld = Math.min(prevAmt, remainingPayment);
                     const oldMonth = rMonth === 1 ? 12 : rMonth - 1;
                     const oldYear = rMonth === 1 ? rYear - 1 : rYear;
                     await recordPayment(id, {
-                        amount: prevAmt,
+                        amount: payForOld,
                         month: oldMonth,
                         year: oldYear,
                         method: 'cash',
-                        note: 'Old due collected (from Reports)',
+                        note: 'Old due portion collected',
                         date: today,
                     });
+                    remainingPayment -= payForOld;
                 }
 
-                // ── Step 2: Record current-period portion against current period ──
-                if (currAmt > 0) {
+                // Priority 2: Current Month Bill
+                if (currAmt > 0 && remainingPayment > 0) {
+                    const payForCurrent = Math.min(currAmt, remainingPayment);
                     await recordPayment(id, {
-                        amount: currAmt,
+                        amount: payForCurrent,
                         month: rMonth,
                         year: rYear,
                         method: 'cash',
                         note: 'Collected from Reports',
                         date: today,
                     });
+                    remainingPayment -= payForCurrent;
                 }
 
-                // Fallback: if both are 0 (e.g. outstanding data missing), record full amount
-                if (prevAmt <= 0 && currAmt <= 0 && amount > 0) {
+                // Priority 3: Advance / Overpayment
+                if (remainingPayment > 0) {
                     await recordPayment(id, {
-                        amount,
+                        amount: remainingPayment,
                         month: rMonth,
                         year: rYear,
                         method: 'cash',
-                        note: 'Collected from Reports',
+                        note: 'Advance / Overpayment (from Reports)',
                         date: today,
                     });
                 }
 
+                if (sheet.querySelector('#qpAmountInput')) sheet.querySelector('#qpAmountInput').value = '';
                 sheet.remove();
-                toast(`✅ ${name} marked as Collected`, 'success');
-                await loadReportsPage();
+                toast(`✅ ${formatCurrency(enteredAmt)} recorded for ${name}`, 'success');
+                invalidateReportCache();
+                await loadReportsPage(true);
             } catch (err) {
                 confirmBtn.disabled = false;
-                confirmBtn.textContent = '✅ Mark as Collected';
+                confirmBtn.textContent = '✅ Record Payment';
                 toast('Failed to save payment', 'error');
             }
         });
@@ -1573,7 +1803,8 @@ function showQuickPaySheet({ id, name, outstanding, prevBalance = 0, currentDue 
                 await deleteMonthPayments(id, y, m);
                 sheet.remove();
                 toast(`↩ ${name} marked as Not Collected`, 'info');
-                await loadReportsPage();
+                invalidateReportCache();
+                await loadReportsPage(true);
             } catch (err) {
                 undoBtn.disabled = false;
                 undoBtn.textContent = '↩ Mark as Not Collected';
@@ -1697,6 +1928,7 @@ async function saveCustomerAction() {
         await saveCustomer({ id: editingCustomerId, name, phone, address: addr, default_qty: defQty, photo });
         closeModal('customerModal');
         toast(editingCustomerId ? 'Customer updated ✓' : 'Customer added ✓', 'success');
+        invalidateReportCache();
         await loadDashboard();
     } catch (err) {
         toast('Error: ' + err.message, 'error');
@@ -1962,7 +2194,7 @@ function wireEvents() {
     ['navDashboard', 'navDashboard2', 'navDashboard3'].forEach(id =>
         $(id)?.addEventListener('click', loadDashboard));
     ['navReports', 'navReports2', 'navReports3'].forEach(id =>
-        $(id)?.addEventListener('click', loadReportsPage));
+        $(id)?.addEventListener('click', () => loadReportsPage(false)));
     ['navSettings', 'navSettings2', 'navSettings3'].forEach(id =>
         $(id)?.addEventListener('click', () => {
             showPage('page-settings');
@@ -2041,6 +2273,7 @@ function wireEvents() {
         const cust = state.currentCustomer;
         if (!cust) return;
         $('paymentModalDesc').textContent = `Recording payment for ${cust.name}`;
+        renderPaymentHistory();
         openModal('paymentModal');
     });
     $('confirmPaymentBtn')?.addEventListener('click', confirmPayment);
@@ -2062,7 +2295,7 @@ function wireEvents() {
     });
     */
 
-    $('manualPushBtn')?.addEventListener('click', manualPushToFirebase);
+    $('manualPushBtn')?.addEventListener('click', forceCloudNuke);
 
     // Rate stepper +/−
     $('rateIncBtn')?.addEventListener('click', () => {

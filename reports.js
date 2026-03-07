@@ -55,10 +55,10 @@ export function downloadAllCSV(allData, month, year, rate) {
     let grandLitres = 0, grandAmount = 0, grandPaid = 0;
 
     for (const row of allData) {
-        csv += `"${row.name}","${row.phone || '—'}",${row.totals.daysDelivered},${row.totals.totalLitres},${row.totals.totalAmount.toFixed(2)},${row.paidAmt.toFixed(2)},${row.outstanding.toFixed(2)}\n`;
+        csv += `"${row.name}","${row.phone || '—'}",${row.totals.daysDelivered},${row.totals.totalLitres},${row.totals.totalAmount.toFixed(2)},${row.totalPaid.toFixed(2)},${row.accountBalance.toFixed(2)}\n`;
         grandLitres += row.totals.totalLitres;
         grandAmount += row.totals.totalAmount;
-        grandPaid += row.paidAmt;
+        grandPaid += row.totalPaid;
     }
 
     csv += `\nGRAND TOTAL,, ,${grandLitres.toLocaleString('en-IN', { maximumFractionDigits: 3 })} L,${grandAmount.toFixed(2)},${grandPaid.toFixed(2)},${(grandAmount - grandPaid).toFixed(2)}\n`;
@@ -273,24 +273,12 @@ export async function generateIndividualPDF(customer, records, options = {}) {
     doc.setFont('helvetica', 'bold');
     doc.text(`Bill Calculation: ${totalLitres.toLocaleString('en-IN', { maximumFractionDigits: 3 })} L x Rs. ${parseFloat(rate).toFixed(2)}`, 14, summaryY + 8);
 
-    const prevBal = parseFloat(options.prevBalance) || 0;
     const currentTotal = totalLitres * rate;
-    const grandTotal = currentTotal + prevBal;
 
-    if (prevBal > 0) {
-        doc.setTextColor(239, 68, 68); // Red
-        doc.text(`PREVIOUS BALANCE: Rs. ${prevBal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 196, summaryY + 8, { align: 'right' });
-
-        doc.setTextColor(...deepBrand);
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`GRAND TOTAL: Rs. ${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, summaryY + 16, { align: 'right' });
-    } else {
-        doc.setTextColor(...deepBrand);
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`GRAND TOTAL: Rs. ${currentTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, summaryY + 8, { align: 'right' });
-    }
+    doc.setTextColor(...deepBrand);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`GRAND TOTAL: Rs. ${currentTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, summaryY + 8, { align: 'right' });
 
     // 6. BOTTOM SECTION: GREETING & ADDRESS (Left) / QR (Right)
     let footerY = summaryY + 18;
@@ -373,7 +361,7 @@ export async function generateSummaryPDF(data, monthLabel) {
     data.forEach(item => {
         totalLitres += item.totals.totalLitres;
         totalRevenue += item.totals.totalAmount;
-        totalPaid += (item.paidAmt || 0);
+        totalPaid += (item.totalPaid || 0);
     });
 
     // Performance Stats Grid
@@ -404,8 +392,8 @@ export async function generateSummaryPDF(data, monthLabel) {
         item.name,
         `${item.totals.totalLitres}L`,
         formatCurrency(item.totals.totalAmount),
-        formatCurrency(item.paidAmt),
-        formatCurrency(item.outstanding)
+        formatCurrency(item.totalPaid),
+        formatCurrency(item.accountBalance)
     ]);
 
     doc.setTextColor(17, 24, 39);
@@ -415,7 +403,7 @@ export async function generateSummaryPDF(data, monthLabel) {
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 20,
-        head: [['CUSTOMER', 'TOTAL QTY', 'BILL AMOUNT', 'PAID', 'OUTSTANDING']],
+        head: [['CUSTOMER', 'TOTAL QTY', 'BILL AMOUNT', 'PAID', 'ACCT BALANCE']],
         body: breakdown,
         theme: 'striped',
         headStyles: {

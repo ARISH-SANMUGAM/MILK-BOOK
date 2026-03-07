@@ -343,15 +343,10 @@
                         <span class="report-stat-value" id="reportTotalRevenue">₹0</span>
                         <div class="report-stat-label">Collected</div>
                     </div>
-                    <div class="report-stat">
-                        <span class="report-stat-value" id="reportTotalOldDues">₹0</span>
-                        <div class="report-stat-label" style="font-size: 0.65rem;">Old Due Paid</div>
-                    </div>
                     <div class="report-stat report-stat--due">
                         <span class="report-stat-value" id="reportTotalDue">₹0</span>
-                        <div class="report-stat-label">Total Due</div>
+                        <div class="report-stat-label">Month Pending</div>
                     </div>
-
                 </div>
             </div>
 
@@ -1030,6 +1025,15 @@
                         <button class="btn btn-outline" style="flex:1;" id="cancelPaymentModal">Cancel</button>
                         <button class="btn btn-primary" style="flex:2;" id="confirmPaymentBtn">✅ Confirm
                             Payment</button>
+                    </div>
+
+                    <!-- Payment History Section -->
+                    <div class="payment-history-section">
+                        <div class="payment-history-title">Recent Payments</div>
+                        <div id="paymentHistoryList" class="payment-history-list">
+                            <!-- Populated dynamically -->
+                            <div class="history-placeholder">Loading history...</div>
+                        </div>
                     </div>
                 </div>
             </div>

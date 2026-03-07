@@ -68,18 +68,21 @@ export async function saveSettings(data) {
 }
 
 // ─── Customers ────────────────────────────────────────────
-export async function getCustomers() {
+export async function getCustomers(includeHidden = false) {
     let list = [];
     if (isDemoMode()) {
         const s = LOCAL.get();
         list = Object.entries(s.customers).map(([id, d]) => ({ id, ...d }));
     } else {
-        const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-        const snap = await getDocs(collection(db(), 'customers'));
+        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const snap = await fs.getDocs(fs.collection(db(), 'customers'));
         list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // Sync cloud data back to local storage so "Local Storage also" is always updated
         const s = LOCAL.get();
+        const cloudIds = new Set(list.map(c => c.id));
+        Object.keys(s.customers).forEach(id => {
+            if (!cloudIds.has(id)) delete s.customers[id];
+        });
         list.forEach(c => {
             s.customers[c.id] = c;
         });
@@ -90,15 +93,13 @@ export async function getCustomers() {
     const now = new Date().toISOString();
 
     for (const c of list) {
-        if (c.marked_for_deletion && c.delete_scheduled_at) {
+        if (!includeHidden && c.marked_for_deletion && c.delete_scheduled_at) {
             if (now >= c.delete_scheduled_at) {
-                // Time to physically delete
-                await deleteCustomer(c.id).catch(err => console.error("Auto delete failed", err));
-                continue; // don't add to returned list
-            } else {
-                // In the 15-day waiting period, hide from everywhere
+                // Background cleanup if expired
+                deleteCustomer(c.id).catch(() => { });
                 continue;
             }
+            continue; // Hide from normal views
         }
         activeList.push(c);
     }
@@ -130,7 +131,7 @@ export async function saveCustomer(data) {
     if (!isDemoMode()) {
         const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
         if (id) {
-            await fs.updateDoc(fs.doc(db(), 'customers', id), payload);
+            await fs.setDoc(fs.doc(db(), 'customers', id), payload, { merge: true });
         } else {
             const ref = await fs.addDoc(fs.collection(db(), 'customers'), payload);
             // Update local storage with the new Firebase ID
@@ -148,14 +149,30 @@ export async function deleteCustomer(id) {
     // 1. Delete Locally
     const s = LOCAL.get();
     delete s.customers[id];
-    delete s.records[id];
-    delete s.payments[id];
+    if (s.records) delete s.records[id];
+    if (s.payments) delete s.payments[id];
+    if (s.monthlyRecords) delete s.monthlyRecords[id];
     LOCAL.save(s);
 
     // 2. Delete from Firebase
     if (!isDemoMode()) {
-        const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-        await deleteDoc(doc(db(), 'customers', id));
+        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const customerDocRef = fs.doc(db(), 'customers', id);
+
+        // Standard deleteDoc doesn't delete sub-collections. 
+        // We attempt to clear known sub-collections to ensure doc is fully gone from console.
+        const subCollections = ['payments', 'daily_records', 'monthly_records'];
+        for (const sub of subCollections) {
+            try {
+                const snap = await fs.getDocs(fs.collection(customerDocRef, sub));
+                const deletePromises = snap.docs.map(d => fs.deleteDoc(d.ref));
+                await Promise.all(deletePromises);
+            } catch (e) {
+                console.warn(`Could not clear sub-collection ${sub} for ${id}:`, e);
+            }
+        }
+
+        await fs.deleteDoc(customerDocRef);
     }
 }
 
@@ -225,15 +242,29 @@ export async function recordPayment(customerId, paymentData) {
 
     // 2. Save to Firebase
     if (!isDemoMode()) {
+        if (!customerId) throw new Error("Missing customer ID for payment");
         const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
         await fs.setDoc(fs.doc(db(), 'customers', customerId, 'payments', payId), payload);
-        await fs.updateDoc(fs.doc(db(), 'customers', customerId), {
+        // Using setDoc with merge:true instead of updateDoc to prevent "No document to update" errors
+        await fs.setDoc(fs.doc(db(), 'customers', customerId), {
             total_balance: fs.increment(-parseFloat(amount)),
-        });
+        }, { merge: true });
     }
 
-    // 3. Refresh the monthly payment history summary for the month the payment covers
-    await updateMonthlyPaymentHistory(customerId, year, month).catch(console.error);
+    // 3. Refresh the monthly summary for the month the payment covers
+    // If the payment has a physical date, also update the summary for that month
+    // since 'total_paid' in monthly_records is based on physical payment date.
+    if (date) {
+        const [py, pm] = date.split('-').map(Number);
+        await updateMonthlySummary(customerId, py, pm).catch(console.error);
+
+        // If the attribution month is different, also update that summary
+        if (py !== year || pm !== month) {
+            await updateMonthlySummary(customerId, year, month).catch(console.error);
+        }
+    } else {
+        await updateMonthlySummary(customerId, year, month).catch(console.error);
+    }
 
     return payId;
 }
@@ -315,122 +346,69 @@ export async function getLifetimeStats(customerId) {
 
 // ─── Balance Aggregates ──────────────────────────────────
 /** Sum all delivery revenue and payments BEFORE a specific ISO date.
- *  Payments are filtered by their ATTRIBUTION month/year (not physical date),
- *  so a payment made today for last month's due correctly reduces prevBalance. */
-export async function getAggregatesBeforeDate(customerId, beforeDate) {
-    let allRecords = [], allPayments = [];
-
-    // Parse beforeDate into year/month for attribution-based filtering
-    const [beforeYear, beforeMonth] = beforeDate.split('-').map(Number);
-
-    /** Returns true if a payment's attributed month/year is before the period */
-    function isPaymentBeforePeriod(p) {
-        if (p.year && p.month) {
-            return p.year < beforeYear || (p.year === beforeYear && p.month < beforeMonth);
-        }
-        // Fallback: use physical date if year/month missing
-        const d = p.date || p.created_at || '0000-00-00';
-        return d < beforeDate;
-    }
-
-    if (isDemoMode()) {
-        const s = LOCAL.get();
-        allRecords = Object.values(s.records?.[customerId] || {}).filter(r => r.date < beforeDate);
-        allPayments = Object.values(s.payments?.[customerId] || {}).filter(isPaymentBeforePeriod);
-    } else {
-        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-
-        // 1. Records before date (date-keyed, simple range query)
-        const rQ = fs.query(
-            fs.collection(db(), 'customers', customerId, 'daily_records'),
-            fs.where('date', '<', beforeDate)
-        );
-        const rSnap = await fs.getDocs(rQ);
-        allRecords = rSnap.docs.map(d => d.data());
-
-        // 2. Fetch ALL payments and filter client-side by attribution month/year.
-        //    This avoids composite Firestore indexes. Per-customer payment counts
-        //    are small so this is fast and safe.
-        const pSnap = await fs.getDocs(
-            fs.collection(db(), 'customers', customerId, 'payments')
-        );
-        allPayments = pSnap.docs.map(d => d.data()).filter(isPaymentBeforePeriod);
-    }
-
-    const totalRevenue = allRecords.reduce((s, r) => s + (parseFloat(r.daily_amount) || 0), 0);
-    const totalPaid = allPayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
-
-    return { totalRevenue, totalPaid, balance: totalRevenue - totalPaid };
-}
-
-
-
-// ─── Monthly Payment History Summary ─────────────────────
+ *  Records use 'date' field. Payments now use 'date' field (physical date received).
+ *  This gives the correct historical balance at any point in time. */
+// ─── Monthly Summary Logic (Reconstructed) ────────────────
 /**
  * Compute and write/update a YYYY-MM summary document to:
- *   customers/{customerId}/paymentHistory/{YYYY-MM}
- *
- * Fields written:
- *   month, year, periodKey (YYYY-MM),
- *   milkQuantity, ratePerLiter, totalAmount,
- *   paidAmount, dueAmount,
- *   paymentMethod, lastPaymentDate, status
+ *   customers/{customerId}/monthly_records/{YYYY-MM}
  */
-export async function updateMonthlyPaymentHistory(customerId, year, month) {
-    // Fetch daily records for the month
-    const records = await getDailyRecords(customerId, year, month).catch(() => []);
-    // Fetch payments for the month
-    const payments = await getPayments(customerId, year, month).catch(() => []);
+export async function updateMonthlySummary(customerId, year, month) {
+    const firstOfMonth = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const lastOfMonth = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-    const milkQuantity = records.reduce((s, r) => s + (parseFloat(r.total_litres) || 0), 0);
-    // Use the rate stored on the most recent record, or fall back to 0
+    // 1. Fetch data
+    const [records, allPayments] = await Promise.all([
+        getDailyRecords(customerId, year, month).catch(() => []),
+        getPayments(customerId).catch(() => [])
+    ]);
+
+    // 2. Calculations
+    const total_litres = records.reduce((s, r) => s + (parseFloat(r.total_litres) || 0), 0);
+
+    // Most recent rate in this month
     const latestRecord = records.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
-    const ratePerLiter = parseFloat(latestRecord?.rate_per_litre || 0);
+    const rate_per_litre = parseFloat(latestRecord?.rate_per_litre || 0);
 
-    const totalAmount = records.reduce((s, r) => s + (parseFloat(r.daily_amount) || 0), 0);
-    const paidAmount = payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
-    const dueAmount = Math.max(0, totalAmount - paidAmount);
+    const current_bill = Math.round(total_litres * rate_per_litre);
 
-    // Determine status
-    let status = 'Due';
-    if (dueAmount <= 0 && totalAmount > 0) status = 'Paid';
-    else if (paidAmount > 0 && dueAmount > 0) status = 'Partially Paid';
+    // Payments ATTRIBUTED to this month/year
+    const attributedPayments = allPayments.filter(p => p.month === month && p.year === year);
+    const total_paid = attributedPayments.reduce((s, p) => s + (p.amount || 0), 0);
 
-    // Last payment info
-    const lastPayment = payments.sort((a, b) =>
-        (b.date || '').localeCompare(a.date || '')
-    )[0];
-    const paymentMethod = lastPayment?.method || null;
-    const lastPaymentDate = lastPayment?.date || null;
+    const pending_balance = Math.max(0, current_bill - total_paid);
+    const is_collected = total_paid >= current_bill && current_bill > 0;
+    const status = is_collected ? 'paid' : (total_paid > 0 ? 'partial' : 'due');
 
     const periodKey = `${year}-${String(month).padStart(2, '0')}`;
     const summary = {
         periodKey,
         month,
         year,
-        milkQuantity: parseFloat(milkQuantity.toFixed(2)),
-        ratePerLiter,
-        totalAmount: parseFloat(totalAmount.toFixed(2)),
-        paidAmount: parseFloat(paidAmount.toFixed(2)),
-        dueAmount: parseFloat(dueAmount.toFixed(2)),
-        paymentMethod,
-        lastPaymentDate,
+        total_litres: parseFloat(total_litres.toFixed(2)),
+        rate_per_litre,
+        total_paid,
+        current_bill,
+        pending_balance,
+        is_collected,
         status,
-        updatedAt: new Date().toISOString(),
+        daily_entries: records.sort((a, b) => a.date.localeCompare(b.date)),
+        updatedAt: new Date().toISOString()
     };
 
-    // Save locally under a paymentHistory key
+    // Save locally
     const s = LOCAL.get();
-    if (!s.paymentHistory) s.paymentHistory = {};
-    if (!s.paymentHistory[customerId]) s.paymentHistory[customerId] = {};
-    s.paymentHistory[customerId][periodKey] = summary;
+    if (!s.monthlyRecords) s.monthlyRecords = {};
+    if (!s.monthlyRecords[customerId]) s.monthlyRecords[customerId] = {};
+    s.monthlyRecords[customerId][periodKey] = summary;
     LOCAL.save(s);
 
     // Save to Firebase
     if (!isDemoMode()) {
         const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
         await setDoc(
-            doc(db(), 'customers', customerId, 'paymentHistory', periodKey),
+            doc(db(), 'customers', customerId, 'monthly_records', periodKey),
             summary,
             { merge: true }
         );
@@ -439,16 +417,20 @@ export async function updateMonthlyPaymentHistory(customerId, year, month) {
     return summary;
 }
 
-/** Fetch a specific month's payment history summary */
-export async function getMonthlyPaymentHistory(customerId, year, month) {
+/** Fetch a specific month's summary */
+export async function getMonthlySummary(customerId, year, month) {
     const periodKey = `${year}-${String(month).padStart(2, '0')}`;
 
     if (isDemoMode()) {
         const s = LOCAL.get();
-        return s.paymentHistory?.[customerId]?.[periodKey] || null;
+        return s.monthlyRecords?.[customerId]?.[periodKey] || null;
     }
 
     const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-    const snap = await getDoc(doc(db(), 'customers', customerId, 'paymentHistory', periodKey));
+    const snap = await getDoc(doc(db(), 'customers', customerId, 'monthly_records', periodKey));
     return snap.exists() ? snap.data() : null;
 }
+
+// Keep aliases for backward compatibility if needed, but we will update callers
+export const updateMonthlyPaymentHistory = updateMonthlySummary;
+export const getMonthlyPaymentHistory = getMonthlySummary;
