@@ -19,7 +19,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
-import { getMonthlySummary, recordPayment, MonthlySummary } from '../services/db';
+import { getMonthlySummary, recordPayment, MonthlySummary, cleanupCustomersBalance } from '../services/db';
 import { formatCurrency, getMonthName, getPrevMonth, getNextMonth, formatDate } from '../utils/calculations';
 import { generateIndividualPDF, downloadCustomerCSV } from '../utils/reports';
 
@@ -31,6 +31,16 @@ const Reports: React.FC = () => {
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [cleaning, setCleaning] = useState(false);
+
+  const handleCleanup = async () => {
+    if (!window.confirm("This will reset all negative balances (overpayments) to ₹0. Continue?")) return;
+    setCleaning(true);
+    await cleanupCustomersBalance();
+    await refreshCustomers();
+    setCleaning(false);
+    alert("Balance cleanup complete. All negative entries have been fixed.");
+  };
 
   const month = selectedDate.getMonth() + 1;
   const year = selectedDate.getFullYear();
@@ -52,9 +62,18 @@ const Reports: React.FC = () => {
   };
 
   const handlePayment = async () => {
-    if (!selectedCustomer || !paymentAmount) return;
+    if (!selectedCustomer || !paymentAmount || !summary) return;
+    
+    const amount = parseFloat(paymentAmount);
+    
+    // Safety restriction: Do not allow overpayment
+    if (amount > summary.pending_balance) {
+      alert(`Payment cannot exceed the due amount of ${formatCurrency(summary.pending_balance)}. For advanced adjustments, please contact support.`);
+      return;
+    }
+
     await recordPayment(selectedCustomer.id, {
-      amount: parseFloat(paymentAmount),
+      amount: amount,
       month,
       year,
       method: 'cash',
@@ -120,7 +139,28 @@ const Reports: React.FC = () => {
             <h1 className="text-3xl font-black text-black tracking-tight">Reports</h1>
             <p className="text-[10px] text-gray-900 font-extrabold uppercase tracking-[0.2em] mt-1">Outstanding: {formatCurrency(totalOutstanding)}</p>
           </div>
-          <div className="flex items-center bg-gray-100 border border-gray-300 rounded-2xl p-1 shadow-inner">
+          <button 
+            onClick={handleCleanup}
+            disabled={cleaning}
+            className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-700 border border-rose-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all disabled:opacity-50"
+          >
+            {cleaning ? "Fixing..." : "Fix Balances"}
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="relative group flex-1">
+            <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-black group-focus-within:text-blue-600 transition-colors"/>
+            <input 
+              type="text"
+              placeholder="Search Route Records..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 bg-white border border-gray-300 rounded-2xl focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all font-black text-black placeholder:text-gray-900/40 shadow-sm"
+            />
+          </div>
+          
+          <div className="flex items-center bg-gray-100 border border-gray-300 rounded-2xl p-1 shadow-inner shrink-0">
             <button onClick={handlePrevMonth} className="p-2 text-black hover:text-blue-600 transition-colors">
               <ChevronLeft size={20} strokeWidth={3}/>
             </button>
@@ -132,17 +172,6 @@ const Reports: React.FC = () => {
               <ChevronRight size={20} strokeWidth={3}/>
             </button>
           </div>
-        </div>
-
-        <div className="relative group">
-          <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-black group-focus-within:text-blue-600 transition-colors"/>
-          <input 
-            type="text"
-            placeholder="Search Route Records..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-300 rounded-2xl focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all font-black text-black placeholder:text-gray-900/40 shadow-sm"
-          />
         </div>
       </header>
 

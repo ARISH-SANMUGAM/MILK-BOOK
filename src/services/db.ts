@@ -255,10 +255,18 @@ export async function recordPayment(customerId: string, paymentData: any): Promi
   LOCAL.save(s);
 
   try {
-    await setDoc(doc(db, 'customers', customerId, 'payments', payId), payload);
+    const currentSnap = await getDoc(doc(db, 'customers', customerId));
+    const currentData = currentSnap.data();
+    const currentBalance = currentData?.total_balance || 0;
+    
+    // Safety check: if system is strict, we could prevent overpayment here,
+    // but we'll do it primarily in the UI.
+    
     await setDoc(doc(db, 'customers', customerId), {
       total_balance: increment(-parseFloat(amount)),
     }, { merge: true });
+
+    await setDoc(doc(db, 'customers', customerId, 'payments', payId), payload);
 
     if (date) {
       const [py, pm] = date.split('-').map(Number);
@@ -352,5 +360,52 @@ export async function getMonthlySummary(customerId: string, year: number, month:
   } catch {
     const s = LOCAL.get();
     return s.monthlyRecords?.[customerId]?.[periodKey] || null;
+  }
+}
+
+/**
+ * ─── Cleanup: Reset negative balances to 0 ──────────────────
+ * Triggered when user wants to fix "minus payments" (overpayments).
+ */
+export async function cleanupCustomersBalance(): Promise<void> {
+  try {
+    const snap = await getDocs(collection(db, 'customers'));
+    const updates = snap.docs.map(async (d) => {
+      const data = d.data() as Customer;
+      let needsUpdate = false;
+      let newBalance = data.total_balance;
+
+      // 1. Cleanup individual negative payments within subcollection
+      const paymentsSnap = await getDocs(collection(db, 'customers', d.id, 'payments'));
+      for (const p of paymentsSnap.docs) {
+        const payData = p.data();
+        if (payData.amount < 0) {
+          // Subtract the "negative payment" from balance (which effectively undoes its addition)
+          newBalance -= payData.amount; 
+          await deleteDoc(p.ref);
+          needsUpdate = true;
+        }
+      }
+
+      // 2. Cap negative balance to 0 (Overpayment fix)
+      if (newBalance < 0) {
+        newBalance = 0;
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        await setDoc(doc(db, 'customers', d.id), { total_balance: newBalance }, { merge: true });
+        
+        // Sync local storage
+        const s = LOCAL.get();
+        if (s.customers[d.id]) {
+          s.customers[d.id].total_balance = newBalance;
+          LOCAL.save(s);
+        }
+      }
+    });
+    await Promise.all(updates);
+  } catch (err) {
+    console.error("Cleanup error", err);
   }
 }
