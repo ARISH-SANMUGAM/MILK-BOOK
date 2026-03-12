@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --primary: #2563EB;
+    --primary-dark: #1D4ED8;
+    --primary-deeper: #1E40AF;
+    --primary-light: #EFF6FF;
+    --primary-glow: rgba(37, 99, 235, 0.35);
+    --primary-mid: rgba(37, 99, 235, 0.15);
+
+    --teal: #06B6D4;
+    --teal-light: #CFFAFE;
+    --amber: #F59E0B;
+    --amber-light: #FEF3C7;
+    --green: #10B981;
+    --green-light: #D1FAE5;
+    --red: #F43F5E;
+    --red-light: #FFE4E6;
+    --indigo: #8B5CF6;
+    --indigo-light: #EDE9FE;
+
+    --bg: #F1F2F4;
+    --surface: #FFFFFF;
+    --surface-2: #F1F2F4;
+    --surface-3: #E1E2E5;
+    --border: #D1D5DB;
+    --border-subtle: #D1D5DB;
+
+    --text-primary: #000000;
+    --text-secondary: #111827;
+    --text-muted: #374151;
+
+    --whatsapp: #25D366;
+    --whatsapp-dark: #128C7E;
+
+    --shadow-xs: 0 1px 2px rgba(99, 102, 241, 0.05);
+    --shadow-sm: 0 3px 10px rgba(99, 102, 241, 0.08), 0 1px 3px rgba(0, 0, 0, 0.02);
+    --shadow-md: 0 8px 24px rgba(99, 102, 241, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+    --shadow-lg: 0 20px 48px rgba(99, 102, 241, 0.16), 0 8px 16px rgba(0, 0, 0, 0.04);
+    --shadow-fab: 0 4px 12px rgba(67, 56, 202, 0.35);
+    --shadow-header: 0 8px 24px rgba(99, 102, 241, 0.08);
+
+    --r-xs: 8px;
+    --r-sm: 12px;
+    --r-md: 18px;
+    --r-lg: 24px;
+    --r-xl: 32px;
+    --r-full: 9999px;
+
+    --nav-height: 72px;
+    --header-height: 68px;
+    --content-pad: 20px;
+
+    --ease: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --t: 0.25s;
+    --t-slow: 0.4s;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+    font-family: 'Outfit', sans-serif;
+}
+
+.pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid rgba(37, 99, 235, 0.1);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
