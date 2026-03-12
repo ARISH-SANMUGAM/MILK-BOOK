@@ -257,7 +257,7 @@ const Customers: React.FC = () => {
 
                   <button 
                     type="submit"
-                    className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-[0.98] transition-all mt-4"
+                    className="w-full py-3.5 bg-black text-white font-black text-xs uppercase tracking-[0.15em] rounded-2xl shadow-xl hover:bg-gray-900 active:scale-[0.97] transition-all mt-6"
                   >
                     {editingCustomer ? 'Update Profile' : 'Create Account'}
                   </button>

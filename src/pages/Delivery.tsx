@@ -148,10 +148,10 @@ const Delivery: React.FC = () => {
             whileTap={{ scale: 0.95 }}
             disabled={saving}
             onClick={handleSave}
-            className="bg-white text-gray-900 p-4 rounded-2xl shadow-xl shadow-black/10 flex items-center gap-2 active:shadow-inner transition-all disabled:opacity-50"
+            className="bg-black text-white px-5 py-2.5 rounded-xl shadow-xl active:bg-gray-900 disabled:opacity-50 flex items-center gap-2"
           >
-            {saving ? <div className="w-5 h-5 border-2 border-gray-100 border-t-gray-900 rounded-full animate-spin" /> : <Save size={20} className="text-gray-900" />}
-            <span className="font-black text-sm uppercase tracking-wider">Save</span>
+            {saving ? <div className="w-4 h-4 border-2 border-gray-100 border-t-white rounded-full animate-spin" /> : <Save size={16} />}
+            <span className="text-[10px] font-black uppercase tracking-widest">Save</span>
           </motion.button>
         </div>
       </header>

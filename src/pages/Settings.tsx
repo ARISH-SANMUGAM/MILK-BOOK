@@ -74,9 +74,10 @@ const Settings: React.FC = () => {
           whileTap={{ scale: 0.95 }}
           onClick={() => handleSubmit()}
           disabled={saving}
-          className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 active:bg-blue-700 disabled:opacity-50"
+          className="bg-black text-white px-5 py-2.5 rounded-xl shadow-xl active:bg-gray-900 disabled:opacity-50 flex items-center gap-2"
         >
-          {saving ? <RefreshCw className="animate-spin" size={20} /> : <Save size={20} />}
+          {saving ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />}
+          <span className="text-[10px] font-black uppercase tracking-widest">Done</span>
         </motion.button>
       </header>
 
@@ -234,14 +235,19 @@ const Settings: React.FC = () => {
         </motion.div>
       </AnimatePresence>
 
-      <button 
-        onClick={() => handleSubmit()}
-        disabled={saving}
-        className="fixed bottom-24 left-5 right-5 z-[50] py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-black rounded-3xl shadow-2xl shadow-blue-200 flex items-center justify-center gap-3 active:scale-[0.97] transition-all disabled:opacity-50"
-      >
-        {saving ? <RefreshCw className="animate-spin" size={20} /> : <Save size={20} />}
-        {saving ? "SAVING..." : "COMMIT CHANGES"}
-      </button>
+      <div className="fixed bottom-20 left-0 right-0 p-4 z-[50] pointer-events-none">
+        <motion.button 
+          whileTap={{ scale: 0.97 }}
+          onClick={() => handleSubmit()}
+          disabled={saving}
+          className="w-full max-w-xs mx-auto py-3.5 bg-black text-white font-black rounded-2xl shadow-2xl flex items-center justify-center gap-3 pointer-events-auto active:bg-gray-900 transition-all disabled:opacity-50"
+        >
+          {saving ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
+          <span className="text-xs uppercase tracking-[0.15em]">
+            {saving ? "Saving..." : "Commit Changes"}
+          </span>
+        </motion.button>
+      </div>
     </div>
   );
 };
