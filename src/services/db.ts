@@ -59,6 +59,7 @@ export interface MonthlySummary {
   is_collected: boolean;
   status: 'paid' | 'partial' | 'due';
   daily_entries: DailyRecord[];
+  payments: Payment[];
   updatedAt: string;
 }
 
@@ -334,6 +335,7 @@ export async function updateMonthlySummary(customerId: string, year: number, mon
     is_collected,
     status: status as any,
     daily_entries: records.sort((a, b) => a.date.localeCompare(b.date)),
+    payments: attributedPayments.sort((a, b) => a.date.localeCompare(b.date)),
     updatedAt: new Date().toISOString()
   };
 

@@ -19,7 +19,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
-import { getMonthlySummary, recordPayment, MonthlySummary, cleanupCustomersBalance } from '../services/db';
+import { getMonthlySummary, updateMonthlySummary, recordPayment, MonthlySummary, cleanupCustomersBalance } from '../services/db';
 import { formatCurrency, getMonthName, getPrevMonth, getNextMonth, formatDate } from '../utils/calculations';
 import { generateIndividualPDF, downloadCustomerCSV } from '../utils/reports';
 
@@ -32,6 +32,43 @@ const Reports: React.FC = () => {
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [cleaning, setCleaning] = useState(false);
+  const [reportStats, setReportStats] = useState({ totalBill: 0, totalCollected: 0 });
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  const month = selectedDate.getMonth() + 1;
+  const year = selectedDate.getFullYear();
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      setStatsLoading(true);
+      try {
+        // Recalculate monthly summaries for all customers to ensure we have the most 
+        // up-to-date figures directly from the source (payments and daily records collections)
+        const promises = customers.map(c => updateMonthlySummary(c.id, year, month));
+        const summaries = await Promise.all(promises);
+        
+        let bill = 0;
+        let collected = 0;
+        
+        summaries.forEach((s: MonthlySummary | null) => {
+          if (s) {
+            bill += s.current_bill || 0;
+            collected += s.total_paid || 0;
+          }
+        });
+        
+        setReportStats({ totalBill: bill, totalCollected: collected });
+      } catch (err) {
+        console.error("Failed to fetch monthly stats", err);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    
+    if (customers.length > 0) {
+      fetchStats();
+    }
+  }, [customers, month, year]);
 
   const handleCleanup = async () => {
     if (!window.confirm("This will reset all negative balances (overpayments) to ₹0. Continue?")) return;
@@ -41,9 +78,6 @@ const Reports: React.FC = () => {
     setCleaning(false);
     alert("Balance cleanup complete. All negative entries have been fixed.");
   };
-
-  const month = selectedDate.getMonth() + 1;
-  const year = selectedDate.getFullYear();
 
   const handlePrevMonth = () => {
     const { m, y } = getPrevMonth(month, year);
@@ -139,13 +173,15 @@ const Reports: React.FC = () => {
             <h1 className="text-3xl font-black text-black tracking-tight">Reports</h1>
             <p className="text-[10px] text-gray-900 font-extrabold uppercase tracking-[0.2em] mt-1">Outstanding: {formatCurrency(totalOutstanding)}</p>
           </div>
-          <button 
-            onClick={handleCleanup}
-            disabled={cleaning}
-            className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-700 border border-rose-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all disabled:opacity-50"
-          >
-            {cleaning ? "Fixing..." : "Fix Balances"}
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleCleanup}
+              disabled={cleaning}
+              className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-700 border border-rose-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all disabled:opacity-50"
+            >
+              {cleaning ? "Fixing..." : "Fix Balances"}
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-4">
@@ -188,14 +224,22 @@ const Reports: React.FC = () => {
               </div>
               <span className="text-xs font-black uppercase tracking-widest text-blue-100">Monthly Snapshot</span>
             </div>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-y-6 gap-x-10">
               <div>
-                <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1">Active Customers</p>
-                <h2 className="text-3xl font-black">{customers.length}</h2>
+                <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1">Total Monthly Bill</p>
+                <h2 className="text-2xl font-black">{statsLoading ? '...' : formatCurrency(reportStats.totalBill)}</h2>
               </div>
               <div className="text-right">
-                <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1">Total Due</p>
-                <h2 className="text-3xl font-black">{formatCurrency(totalOutstanding)}</h2>
+                <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1">Total Collected Bill</p>
+                <h2 className="text-2xl font-black">{statsLoading ? '...' : formatCurrency(reportStats.totalCollected)}</h2>
+              </div>
+              <div className="pt-4 border-t border-white/10">
+                <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1">Overall Outstanding</p>
+                <h2 className="text-xl font-black">{formatCurrency(totalOutstanding)}</h2>
+              </div>
+              <div className="text-right pt-4 border-t border-white/10">
+                <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1">Active Customers</p>
+                <h2 className="text-xl font-black">{customers.length}</h2>
               </div>
             </div>
           </div>
@@ -299,49 +343,111 @@ const Reports: React.FC = () => {
                         <h3 className="text-2xl font-black">{formatCurrency(summary.current_bill)}</h3>
                       </div>
                       <div className="bg-blue-600 p-6 rounded-[2rem] text-white">
-                        <p className="text-[10px] text-blue-100 font-extrabold uppercase tracking-widest mb-1">Total Qty</p>
+                        <p className="text-[10px] text-blue-100 font-extrabold uppercase tracking-widest mb-1">Total Paid</p>
+                        <h3 className="text-2xl font-black">{formatCurrency(summary.total_paid)}</h3>
+                      </div>
+                      <div className="bg-rose-600 p-6 rounded-[2rem] text-white">
+                        <p className="text-[10px] text-rose-100 font-extrabold uppercase tracking-widest mb-1">Pending Due</p>
+                        <h3 className="text-2xl font-black">{formatCurrency(summary.pending_balance)}</h3>
+                      </div>
+                      <div className="bg-gray-100 p-6 rounded-[2rem] text-gray-900">
+                        <p className="text-[10px] text-gray-500 font-extrabold uppercase tracking-widest mb-1">Total Qty</p>
                         <h3 className="text-2xl font-black">{summary.total_litres} <span className="text-sm font-medium">L</span></h3>
                       </div>
                     </div>
 
-                    {/* Progress Card */}
-                    <div className="bg-white rounded-[2rem] border border-gray-100 p-6 shadow-sm space-y-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Payment Status</p>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-xl font-black text-gray-900">{formatCurrency(summary.total_paid)}</h3>
-                            <span className="text-xs text-gray-300 font-bold">/</span>
-                            <span className="text-xs text-gray-400 font-bold">{formatCurrency(summary.current_bill)}</span>
-                          </div>
-                        </div>
-                        <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                    {/* Monthly Record & Payment Log */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between px-1">
+                        <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Monthly Record & Payments</h4>
+                        <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
                           summary.status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
                         }`}>
                           {summary.status}
                         </div>
                       </div>
-                      
-                      {/* Custom Progress Bar */}
-                      <div className="h-4 bg-gray-50 rounded-full overflow-hidden border border-gray-100 p-1">
-                        <motion.div 
-                          initial={{width: 0}}
-                          animate={{width: `${Math.min(100, (summary.total_paid / summary.current_bill) * 100)}%`}}
-                          className={`h-full rounded-full ${summary.status === 'paid' ? 'bg-emerald-500' : 'bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.4)]'}`}
-                        />
-                      </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-gray-50">
-                        <div>
-                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Pending Due</p>
-                          <p className="text-lg font-black text-rose-600 leading-none">{formatCurrency(summary.pending_balance)}</p>
-                        </div>
-                        <button 
-                          onClick={()=>setIsPayModalOpen(true)}
-                          className="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-2xl text-xs font-black shadow-lg shadow-gray-200 active:scale-95 transition-all"
-                        >
-                          <Wallet size={16} /> Collect Payment
-                        </button>
+                      <div className="bg-gray-50 rounded-[2.5rem] p-4 space-y-3 border border-blue-50/50">
+                        {/* Inline Payment Collection Field */}
+                        {summary.pending_balance > 0 && (
+                          <div className="bg-white p-5 rounded-3xl shadow-sm border-2 border-emerald-100 space-y-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                                <Wallet size={20} />
+                              </div>
+                              <div>
+                                <p className="text-xs font-black text-gray-800">Quick Pay</p>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase">Record Payment Inline</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <div className="relative flex-1">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-400">₹</span>
+                                <input 
+                                  type="number" 
+                                  placeholder="0.00"
+                                  value={paymentAmount}
+                                  onChange={(e)=>setPaymentAmount(e.target.value)}
+                                  className="w-full pl-9 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-emerald-300 transition-all font-black text-lg outline-none"
+                                />
+                              </div>
+                              <button 
+                                onClick={handlePayment}
+                                className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-emerald-100"
+                              >
+                                Record
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Combined Log List (Deliveries & Payments) */}
+                        {(() => {
+                          const combinedLogs = [
+                            ...summary.daily_entries.map(e => ({ ...e, logType: 'delivery' })),
+                            ...(summary.payments || []).map(p => ({ ...p, logType: 'payment' }))
+                          ].sort((a, b) => b.date.localeCompare(a.date));
+
+                          if (combinedLogs.length === 0) {
+                            return <div className="py-10 text-center text-gray-400 text-xs font-bold uppercase tracking-widest italic opacity-40">No entries saved for this month</div>;
+                          }
+
+                          return combinedLogs.map((item: any, idx) => (
+                            <div key={item.id || item.date + idx} className={`flex items-center justify-between py-4 px-5 rounded-2xl shadow-sm border transition-all hover:scale-[1.02] ${
+                              item.logType === 'payment' ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-gray-100/50'
+                            }`}>
+                              <div className="flex items-center gap-4">
+                                <div className={`w-9 h-9 rounded-xl flex flex-col items-center justify-center border ${
+                                  item.logType === 'payment' 
+                                    ? 'bg-emerald-600 text-white border-emerald-700' 
+                                    : 'bg-gray-50 text-gray-600 border-gray-100'
+                                }`}>
+                                  <span className="text-[8px] font-black uppercase leading-none">{formatDate(item.date, 'short').split(' ')[1]}</span>
+                                  <span className="text-sm font-black mt-0.5 leading-none">{formatDate(item.date, 'short').split(' ')[0]}</span>
+                                </div>
+                                <div>
+                                  {item.logType === 'payment' ? (
+                                    <>
+                                      <p className="text-xs font-black text-emerald-800 tracking-tight">Payment Received</p>
+                                      <p className="text-[10px] text-emerald-600/60 font-bold uppercase">Cash Settlement</p>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <p className="text-xs font-black text-gray-800 tracking-tight">{item.total_litres} Litres</p>
+                                      <p className="text-[10px] text-gray-400 font-bold uppercase">Delivery Log</p>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className={`text-sm font-black ${item.logType === 'payment' ? 'text-emerald-700' : 'text-gray-900'}`}>
+                                  {item.logType === 'payment' ? `- ${formatCurrency(item.amount)}` : formatCurrency(item.daily_amount)}
+                                </p>
+                                {item.no_delivery && <span className="text-[8px] text-rose-500 font-black uppercase">Skipped</span>}
+                              </div>
+                            </div>
+                          ));
+                        })()}
                       </div>
                     </div>
 
@@ -369,37 +475,6 @@ const Reports: React.FC = () => {
                          </button>
                        </div>
                     </div>
-
-                    {/* Monthly Record Panel (Daily Entries) */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between px-1">
-                        <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Monthly Record Log</h4>
-                        <span className="bg-gray-100 text-gray-500 text-[9px] font-black px-2 py-0.5 rounded-md">{summary.daily_entries.length} Entries</span>
-                      </div>
-                      <div className="bg-gray-50 rounded-[2.5rem] p-4 space-y-2 border border-blue-50/50">
-                        {summary.daily_entries.map(e => (
-                          <div key={e.date} className="flex items-center justify-between py-4 px-5 bg-white rounded-2xl shadow-sm border border-gray-100/50 transition-all group hover:scale-[1.02]">
-                            <div className="flex items-center gap-4">
-                              <div className="w-9 h-9 bg-gray-50 rounded-xl flex flex-col items-center justify-center border border-gray-100 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-700 transition-all">
-                                <span className="text-[8px] font-black uppercase leading-none">{formatDate(e.date, 'short').split(' ')[1]}</span>
-                                <span className="text-sm font-black mt-0.5 leading-none">{formatDate(e.date, 'short').split(' ')[0]}</span>
-                              </div>
-                              <div>
-                                <p className="text-xs font-black text-gray-800 tracking-tight">{e.total_litres} Litres</p>
-                                <p className="text-[10px] text-gray-400 font-bold uppercase">Delivery Log</p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-black text-gray-900">{formatCurrency(e.daily_amount)}</p>
-                              {e.no_delivery && <span className="text-[8px] text-rose-500 font-black uppercase">Skipped</span>}
-                            </div>
-                          </div>
-                        ))}
-                        {summary.daily_entries.length === 0 && (
-                          <div className="py-10 text-center text-gray-400 text-xs font-bold uppercase tracking-widest italic opacity-40">No entries saved for this month</div>
-                        )}
-                      </div>
-                    </div>
                   </div>
                 </div>
               ) : (
@@ -410,54 +485,6 @@ const Reports: React.FC = () => {
                   <p className="text-gray-400 font-black uppercase text-[10px] tracking-[0.3em] animate-pulse">Calculating Statement...</p>
                 </div>
               )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Premium Payment Overlay Modal */}
-      <AnimatePresence>
-        {isPayModalOpen && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 sm:p-4">
-            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={()=>setIsPayModalOpen(false)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"/>
-            <motion.div 
-              initial={{scale:0.9, opacity:0}}
-              animate={{scale:1, opacity:1}}
-              exit={{scale:0.9, opacity:0}}
-              className="relative bg-white w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl space-y-8"
-            >
-              <div className="text-center">
-                <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-emerald-100 shadow-inner">
-                  <Wallet size={36} />
-                </div>
-                <h3 className="text-2xl font-black text-gray-900">Secure Payment</h3>
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mt-1">Collecting for {selectedCustomer?.name}</p>
-              </div>
-
-              <div className="group">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 pl-2">Amount to Collect (₹)</p>
-                <div className="relative group/input">
-                  <span className="absolute left-6 top-1/2 -translate-y-1/2 font-black text-3xl transition-colors text-gray-300 group-focus-within/input:text-emerald-500">₹</span>
-                  <input 
-                    autoFocus
-                    type="number" 
-                    placeholder="0.00"
-                    value={paymentAmount}
-                    onChange={(e)=>setPaymentAmount(e.target.value)}
-                    className="w-full pl-14 pr-6 py-6 bg-gray-50 border-2 border-transparent rounded-[2rem] focus:bg-white focus:border-emerald-100 focus:ring-8 focus:ring-emerald-50/50 transition-all font-black text-3xl text-emerald-900 outline-none tabular-nums shadow-inner"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-4 pt-2">
-                <button onClick={()=>setIsPayModalOpen(false)} className="flex-1 py-4 font-black text-gray-400 text-sm uppercase tracking-widest hover:text-gray-900 transition-colors">Dismiss</button>
-                <button 
-                  onClick={handlePayment} 
-                  className="flex-1 py-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white text-sm font-black rounded-3xl shadow-xl shadow-emerald-100 active:scale-95 transition-all uppercase tracking-widest"
-                >
-                  Verify Payment
-                </button>
-              </div>
             </motion.div>
           </div>
         )}
