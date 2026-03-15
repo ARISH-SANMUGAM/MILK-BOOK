@@ -13,16 +13,22 @@ import {
   Milk,
   LayoutGrid,
   Search,
-  Check
+  Check,
+  User,
+  Home,
+  Clock,
+  BarChart3,
+  Settings as SettingsIcon,
+  ChevronRight
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
-import { saveDailyRecord, getDailyRecord } from '../services/db';
+import { saveBatchDailyRecords, getDailyRecord } from '../services/db';
 import { formatDate, calcDailyAmount } from '../utils/calculations';
 
 interface SessionEntry { qty: number; collected: boolean; noDelivery: boolean }
 
 const Delivery: React.FC = () => {
-  const { customers, settings, loading } = useAppContext();
+  const { customers, settings, loading, refreshCustomers } = useAppContext();
   const [date, setDate] = useState(formatDate(new Date(), 'iso'));
   const [activeSession, setActiveSession] = useState<'morning' | 'evening'>('morning');
   const [sessionData, setSessionData] = useState<Record<string, { morning: SessionEntry, evening: SessionEntry }>>({});
@@ -30,7 +36,7 @@ const Delivery: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showToast, setShowToast] = useState(false);
 
-  // Load existing records for the date
+  // Load existing records or defaults for the date
   useEffect(() => {
     const loadSessionData = async () => {
       const newData: Record<string, any> = {};
@@ -43,8 +49,8 @@ const Delivery: React.FC = () => {
           };
         } else {
           newData[c.id] = {
-            morning: { qty: 0, collected: false, noDelivery: false },
-            evening: { qty: 0, collected: false, noDelivery: false }
+            morning: { qty: c.default_qty || 0, collected: false, noDelivery: false },
+            evening: { qty: c.default_qty || 0, collected: false, noDelivery: false }
           };
         }
       }
@@ -53,48 +59,54 @@ const Delivery: React.FC = () => {
     if (customers.length > 0) loadSessionData();
   }, [date, customers]);
 
-  const updateEntry = (custId: string, session: 'morning' | 'evening', field: string, value: any) => {
+  const updateEntry = async (custId: string, session: 'morning' | 'evening', field: string, value: any) => {
+    // 1. Update local state for immediate UI feedback
+    const currentData = sessionData[custId] || { 
+      morning: { qty: 0, collected: false, noDelivery: false }, 
+      evening: { qty: 0, collected: false, noDelivery: false } 
+    };
+
+    const updatedCustomerSession = {
+      ...currentData,
+      [session]: {
+        ...currentData[session],
+        [field]: value
+      }
+    };
+
     setSessionData(prev => ({
       ...prev,
-      [custId]: {
-        ...prev[custId],
-        [session]: {
-          ...prev[custId][session],
-          [field]: value
-        }
-      }
+      [custId]: updatedCustomerSession
     }));
-  };
 
-  const handleSave = async () => {
-    setSaving(true);
+    // 2. Auto-save to database (Individual record update)
+    const { litres, amount } = calcDailyAmount(
+      updatedCustomerSession.morning.qty, 
+      updatedCustomerSession.evening.qty, 
+      settings.rate
+    );
+
     try {
-      for (const c of customers) {
-        const s = sessionData[c.id];
-        const { litres, amount } = calcDailyAmount(s.morning.qty, s.evening.qty, settings.rate);
-        
-        await saveDailyRecord(c.id, date, {
-          morning_qty: s.morning.qty,
-          morning_collected: s.morning.collected,
-          evening_qty: s.evening.qty,
-          evening_collected: s.evening.collected,
+      await saveBatchDailyRecords(date, [{
+        customerId: custId,
+        data: {
+          morning_qty: updatedCustomerSession.morning.qty,
+          morning_collected: updatedCustomerSession.morning.collected,
+          evening_qty: updatedCustomerSession.evening.qty,
+          evening_collected: updatedCustomerSession.evening.collected,
           total_litres: litres,
           daily_amount: amount,
           rate_per_litre: settings.rate,
-          no_delivery: s.morning.noDelivery || s.evening.noDelivery
-        });
-      }
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
+          no_delivery: updatedCustomerSession.morning.noDelivery || updatedCustomerSession.evening.noDelivery
+        }
+      }]);
     } catch (err) {
-      console.error(err);
-      alert("Failed to save entries.");
-    } finally {
-      setSaving(false);
+      console.error("Auto-save error", err);
     }
   };
 
-  // Shift Statistics
+   // Global save removed in favor of auto-save per entry
+
   const shiftStats = useMemo(() => {
     let totalLitres = 0;
     let pendingMembers = 0;
@@ -114,231 +126,216 @@ const Delivery: React.FC = () => {
       }
     });
 
-    return { totalLitres, pendingMembers, entriesDone, skippedCount };
+    return { 
+      totalLitres, 
+      pendingMembers, 
+      entriesDone, 
+      skippedCount,
+      percent: customers.length > 0 ? Math.round((entriesDone / customers.length) * 100) : 0 
+    };
   }, [sessionData, activeSession, customers]);
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [customers, searchTerm]);
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
-        <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading Route...</p>
-      </div>
-    </div>
-  );
+  if (loading) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50/50 pb-32 relative overflow-hidden">
-      {/* Revised Header with integrated background */}
-      <header className={`px-5 pt-8 pb-32 transition-colors duration-700 ${
-        activeSession === 'morning' ? 'bg-amber-400' : 'bg-indigo-600'
-      }`}>
-        <div className="flex items-start justify-between">
-          <div className="text-white">
-            <h1 className="text-3xl font-black tracking-tight leading-tight text-white">Daily Entry</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Calendar size={14} className="text-white" />
-              <p className="text-xs font-black uppercase tracking-widest text-white leading-none">{formatDate(date, 'short')}</p>
+    <div className="min-h-screen bg-[#F1F4FF] font-sans pb-32">
+      {/* 1. Breadcrumb & Status */}
+      <div className="px-6 py-10">
+        <p className="text-slate-500 text-sm font-bold uppercase tracking-wider">
+          {formatDate(date, 'full')} | <span className="text-[#10b981]">{activeSession === 'morning' ? 'Morning' : 'Evening'} Batch</span>
+        </p>
+      </div>
+
+      <div className="px-6 mb-8">
+        <div className="bg-gradient-to-br from-[#1e1b4b] via-[#2d2a7a] to-[#3730a3] rounded-2xl p-7 text-white shadow-2xl shadow-indigo-900/30 border border-white/10 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-[0.15em] mb-1.5">{activeSession} Session Overview</p>
+              <h2 className="text-3xl font-bold tracking-tight text-white">{shiftStats.totalLitres.toFixed(1)} <span className="text-lg font-medium text-indigo-300">Liters</span></h2>
+            </div>
+            <div className="text-right">
+               <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-600 gap-1.5">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Live</span>
+               </div>
+               <div className="mt-2 text-right">
+                 <span className="text-xl font-bold text-white block leading-none">{shiftStats.percent}%</span>
+                 <span className="text-[10px] font-bold text-indigo-200 tracking-wider uppercase">{shiftStats.entriesDone}/{customers.length} Done</span>
+               </div>
             </div>
           </div>
-          <motion.button 
-            whileTap={{ scale: 0.95 }}
-            disabled={saving}
-            onClick={handleSave}
-            className="bg-black text-white px-5 py-2.5 rounded-xl shadow-xl active:bg-gray-900 disabled:opacity-50 flex items-center gap-2"
+
+          <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-6 mt-2">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${shiftStats.percent}%` }}
+              className="h-full bg-emerald-400 rounded-full"
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <div className="text-center flex-1">
+              <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-1.5">Delivered</p>
+              <p className="text-lg font-bold text-white leading-none">{shiftStats.entriesDone}</p>
+            </div>
+            <div className="text-center flex-1 border-x border-white/10">
+              <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-1.5">Skipped</p>
+              <p className="text-lg font-bold text-white leading-none">{shiftStats.skippedCount}</p>
+            </div>
+            <div className="text-center flex-1">
+              <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-1.5">Earnings</p>
+              <p className="text-lg font-bold text-emerald-400 leading-none">₹{(shiftStats.totalLitres * settings.rate).toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Session Toggle Section */}
+      <div className="px-6 mb-8">
+        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3 block ml-1">Delivery Session</label>
+        <div className="bg-slate-200/50 rounded-xl p-1 flex gap-1 border border-slate-200 shadow-sm">
+          <button 
+            onClick={() => setActiveSession('morning')}
+            className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
+              activeSession === 'morning' ? 'bg-[#1e1b4b] text-white shadow-md' : 'text-slate-500'
+            }`}
           >
-            {saving ? <div className="w-4 h-4 border-2 border-gray-100 border-t-white rounded-full animate-spin" /> : <Save size={16} />}
-            <span className="text-[10px] font-black uppercase tracking-widest">Save</span>
-          </motion.button>
+            Morning
+          </button>
+          <button 
+            onClick={() => setActiveSession('evening')}
+            className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
+              activeSession === 'evening' ? 'bg-[#1e1b4b] text-white shadow-md' : 'text-slate-500'
+            }`}
+          >
+            Evening
+          </button>
         </div>
-      </header>
+      </div>
 
-      {/* Stats Dashboard - Shifting it up to overlap the header */}
-      <div className="px-5 -mt-24 space-y-6 relative z-10">
-        <div className="bg-white rounded-[2.5rem] p-6 shadow-2xl shadow-black/5 border border-white/50 space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex bg-gray-100/80 p-1 rounded-2xl w-fit">
-              <button 
-                onClick={() => setActiveSession('morning')}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black transition-all ${
-                  activeSession === 'morning' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500'
-                }`}
-              >
-                <Sun size={14} fill={activeSession === 'morning' ? "currentColor" : "none"} /> Morning
-              </button>
-              <button 
-                onClick={() => setActiveSession('evening')}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black transition-all ${
-                  activeSession === 'evening' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'
-                }`}
-              >
-                <Moon size={14} fill={activeSession === 'evening' ? "currentColor" : "none"} /> Evening
-              </button>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-xl border border-gray-300">
-               <Calendar size={14} className="text-gray-900" />
-               <input 
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="bg-transparent border-none p-0 outline-none text-xs font-black text-black w-24"
-               />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4 border-t border-gray-200 pt-6">
-            <div className="text-center">
-              <div className="w-10 h-10 bg-blue-100 text-blue-900 rounded-xl flex items-center justify-center mx-auto mb-2 border border-blue-200">
-                <Milk size={18} strokeWidth={3} />
-              </div>
-              <p className="text-[18px] font-black text-black leading-none">{shiftStats.totalLitres.toFixed(1)}</p>
-              <p className="text-[9px] font-black text-gray-900 uppercase tracking-widest mt-1">Total Litres</p>
-            </div>
-            <div className="text-center border-x border-gray-200">
-              <div className="w-10 h-10 bg-rose-100 text-rose-900 rounded-xl flex items-center justify-center mx-auto mb-2 border border-rose-200">
-                <Users size={18} strokeWidth={3} />
-              </div>
-              <p className="text-[18px] font-black text-black leading-none">{shiftStats.pendingMembers}</p>
-              <p className="text-[9px] font-black text-gray-900 uppercase tracking-widest mt-1">Pending</p>
-            </div>
-            <div className="text-center">
-              <div className="w-10 h-10 bg-emerald-100 text-emerald-900 rounded-xl flex items-center justify-center mx-auto mb-2 border border-emerald-200">
-                <CheckCircle2 size={18} strokeWidth={3} />
-              </div>
-              <p className="text-[18px] font-black text-black leading-none">{shiftStats.entriesDone}</p>
-              <p className="text-[9px] font-black text-gray-900 uppercase tracking-widest mt-1">Logged</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative group">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-black group-focus-within:text-blue-600 transition-colors" />
+      {/* 5. Date & Search Bar */}
+      <div className="px-6 grid grid-cols-2 gap-3 mb-6">
+        <div className="relative">
+          <Calendar size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input 
-            type="text"
+            type="date" 
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full pl-10 pr-3 py-3.5 bg-white rounded-xl border border-slate-200 shadow-sm text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1e1b4b]/10 focus:border-[#1e1b4b]"
+          />
+        </div>
+        <div className="relative">
+          <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input 
+            type="text" 
             placeholder="Search Route..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-300 rounded-[2rem] shadow-sm focus:ring-4 focus:ring-blue-100/50 outline-none font-black text-black transition-all placeholder:text-gray-900/40"
+            className="w-full pl-10 pr-3 py-3.5 bg-white rounded-xl border border-slate-200 shadow-sm text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1e1b4b]/10 focus:border-[#1e1b4b]"
           />
-        </div>
-
-        {/* Customer List */}
-        <div className="space-y-3 pb-20">
-          <AnimatePresence mode="popLayout">
-            {filteredCustomers.map((c) => {
-              const s = sessionData[c.id]?.[activeSession] || { qty: 0, collected: false, noDelivery: false };
-              const isLogged = s.qty > 0 || s.noDelivery;
-              
-              return (
-                <motion.div 
-                  layout
-                  key={c.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className={`bg-white p-5 rounded-[2rem] border-2 transition-all duration-300 ${
-                    s.noDelivery 
-                      ? 'border-gray-200 bg-gray-50/50 grayscale' 
-                      : isLogged 
-                        ? 'border-blue-200 shadow-blue-100 shadow-xl' 
-                        : 'border-gray-100 shadow-md'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-inner ${
-                        activeSession === 'morning' ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'
-                      }`}>
-                        {c.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-black text-gray-900 text-base tracking-tight">{c.name}</h4>
-                          {isLogged && (
-                            <div className="bg-emerald-500 p-1 rounded-full text-white">
-                              <Check size={8} strokeWidth={4} />
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-black font-black uppercase tracking-widest mt-0.5">Usual: {c.default_qty}L</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className={`flex items-center p-1.5 rounded-2xl transition-all ${
-                        s.noDelivery ? 'opacity-20 pointer-events-none' : 'bg-gray-100 border border-gray-300 shadow-inner'
-                      }`}>
-                        <button 
-                          onClick={() => updateEntry(c.id, activeSession, 'qty', Math.max(0, s.qty - 0.5))}
-                          className="w-10 h-10 flex items-center justify-center text-black hover:text-rose-700 active:scale-90 transition-all bg-white rounded-xl shadow-sm border border-gray-200"
-                        >
-                          <Minus size={18} strokeWidth={4} />
-                        </button>
-                        <div className="w-14 text-center">
-                          <span className={`text-xl font-black tabular-nums ${s.qty > 0 ? 'text-gray-900' : 'text-gray-300'}`}>
-                            {s.qty === 0 ? '0' : s.qty}
-                          </span>
-                          <span className="text-[10px] font-black text-black uppercase block leading-none">Liters</span>
-                        </div>
-                        <button 
-                          onClick={() => updateEntry(c.id, activeSession, 'qty', s.qty + 0.5)}
-                          className="w-10 h-10 flex items-center justify-center text-black hover:text-emerald-700 active:scale-90 transition-all bg-white rounded-xl shadow-sm border border-gray-200"
-                        >
-                          <Plus size={18} strokeWidth={4} />
-                        </button>
-                      </div>
-
-                      {/* No Delivery Switch */}
-                      <motion.button 
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => updateEntry(c.id, activeSession, 'noDelivery', !s.noDelivery)}
-                        className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all ${
-                          s.noDelivery 
-                            ? 'bg-rose-600 border-rose-700 text-white shadow-lg shadow-rose-200' 
-                            : 'bg-white border-gray-300 text-gray-400 hover:border-black hover:text-black shadow-md'
-                        }`}
-                      >
-                        <Truck size={22} fill={s.noDelivery ? "white" : "none"} />
-                      </motion.button>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-
-          {filteredCustomers.length === 0 && (
-            <div className="py-20 text-center">
-              <div className="w-20 h-20 bg-white rounded-[2.5rem] flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-50 text-gray-200">
-                <LayoutGrid size={32} />
-              </div>
-              <p className="text-gray-400 font-extrabold uppercase text-[10px] tracking-widest leading-relaxed px-10">No customer found on this route</p>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Modern Success Toast */}
+      {/* 6. Customer Routing Cards */}
+      <div className="px-5 space-y-3 pb-8">
+        <AnimatePresence mode="popLayout">
+          {filteredCustomers.map((c) => {
+            const s = sessionData[c.id]?.[activeSession] || { qty: 0, collected: false, noDelivery: false };
+            const isDone = s.qty > 0 || s.noDelivery;
+            const initials = c.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+
+            return (
+              <motion.div 
+                layout
+                key={c.id}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className={`bg-white rounded-xl p-5 border transition-all relative ${
+                  s.noDelivery ? 'border-rose-400 bg-rose-50/30' : 
+                  s.qty > 0 ? 'border-slate-900/30 bg-indigo-50/30' : 'border-slate-900/30'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold text-slate-800 truncate">{c.name}</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{c.address || 'Standard Route'}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-300 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                      {initials}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 pt-1">
+                  <div className={`flex items-center bg-slate-50 rounded-xl border border-slate-100 p-1 ${s.noDelivery ? 'opacity-30 pointer-events-none' : ''}`}>
+                    <button 
+                      onClick={() => updateEntry(c.id, activeSession, 'qty', Math.max(0, s.qty - 0.5))}
+                      className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-[#1e1b4b] transition-colors"
+                    >
+                      <Minus size={16} strokeWidth={2.5} />
+                    </button>
+                    <div className="w-12 text-center">
+                      <span className="text-base font-bold text-slate-800 tabular-nums">{s.qty}</span>
+                    </div>
+                    <button 
+                      onClick={() => updateEntry(c.id, activeSession, 'qty', s.qty + 0.5)}
+                      className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-[#1e1b4b] transition-colors"
+                    >
+                      <Plus size={16} strokeWidth={2.5} />
+                    </button>
+                  </div>
+
+                   <div className="flex flex-col items-end gap-2">
+                    <button
+                      onClick={() => updateEntry(c.id, activeSession, 'noDelivery', !s.noDelivery)}
+                      className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${
+                        s.noDelivery 
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-md' 
+                        : isDone
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm'
+                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {s.noDelivery ? 'Skipped' : isDone ? 'Delivered' : 'Pending'}
+                    </button>
+                    {isDone && !s.noDelivery && (
+                      <div className="flex items-center gap-1.5 opacity-60">
+                         <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">Entry Saved</span>
+                         <CheckCircle2 size={10} className="text-emerald-600" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+
+         <div className="pt-2 text-center">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center justify-center gap-2">
+              <CheckCircle2 size={12} className="text-emerald-500" />
+              All Changes Auto-Synced to Cloud
+            </p>
+         </div>
+      </div>
+
+      {/* Success Toast */}
       <AnimatePresence>
         {showToast && (
           <motion.div 
-            initial={{ y: 100, opacity: 0 }}
+            initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-xs"
+            exit={{ y: 20, opacity: 0 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] bg-emerald-600 text-white px-6 py-3.5 rounded-xl shadow-2xl font-bold text-[10px] uppercase tracking-[0.2em] flex items-center gap-3 border border-emerald-500"
           >
-            <div className="bg-gray-900 p-4 rounded-3xl shadow-2xl flex items-center gap-4 border border-white/10">
-              <div className="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center">
-                <CheckCircle2 size={20} />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-black text-white tracking-tight">Records Synced</p>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Cloud Database Updated</p>
-              </div>
-            </div>
+            <CheckCircle2 size={18} />
+            Database Updated
           </motion.div>
         )}
       </AnimatePresence>

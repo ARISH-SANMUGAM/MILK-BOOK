@@ -1,6 +1,6 @@
 import { db } from './firebase';
 import { 
-  collection, doc, getDocs, getDoc, setDoc, addDoc, deleteDoc, query, where, orderBy, increment 
+  collection, doc, getDocs, getDoc, setDoc, addDoc, deleteDoc, query, where, orderBy, increment, writeBatch 
 } from 'firebase/firestore';
 
 // ─── Types ────────────────────────────────────────────────
@@ -197,17 +197,79 @@ export async function deleteCustomer(id: string): Promise<void> {
 
 // ─── Daily Records ────────────────────────────────────────
 export async function saveDailyRecord(customerId: string, date: string, data: Partial<DailyRecord>): Promise<void> {
+  // Fallback for single record updates (though we prefer batch for Daily Entry)
+  return saveBatchDailyRecords(date, [{ customerId, data }]);
+}
+
+/**
+ * Save multiple daily records in an atomic batch.
+ * This is more reliable and efficient for the Daily Entry page.
+ */
+ export async function saveBatchDailyRecords(date: string, updates: { customerId: string, data: Partial<DailyRecord> }[]): Promise<void> {
   const s = LOCAL.get();
-  if (!s.records[customerId]) s.records[customerId] = {};
-  s.records[customerId][date] = { date, ...data };
+  const batch = writeBatch(db);
+  
+  const [y, m] = date.split('-').map(Number);
+  console.log(`💾 Initiating batch save for ${date}...`);
+
+  for (const update of updates) {
+    const { customerId, data } = update;
+    
+    // Explicitly numberify for cloud safety
+    const morning_qty = parseFloat(data.morning_qty as any) || 0;
+    const evening_qty = parseFloat(data.evening_qty as any) || 0;
+    const daily_amount = parseFloat(data.daily_amount as any) || 0;
+    const total_litres = parseFloat(data.total_litres as any) || 0;
+
+    const cloudData = {
+      ...data,
+      morning_qty,
+      evening_qty,
+      daily_amount,
+      total_litres
+    };
+    
+    // 1. Calculate balance difference first
+    const prevLocal = s.records[customerId]?.[date];
+    const prevAmount = parseFloat(prevLocal?.daily_amount as any) || 0;
+    const diff = daily_amount - prevAmount;
+
+    // 2. Update Local Store
+    if (!s.records[customerId]) s.records[customerId] = {};
+    s.records[customerId][date] = { date, ...cloudData };
+    
+    if (s.customers[customerId]) {
+      s.customers[customerId].total_balance = (s.customers[customerId].total_balance || 0) + diff;
+    }
+
+    // 3. Queue Cloud Batch
+    const recordRef = doc(db, 'customers', customerId, 'daily_records', date);
+    batch.set(recordRef, { date, ...cloudData }, { merge: true });
+
+    if (diff !== 0) {
+      const customerRef = doc(db, 'customers', customerId);
+      batch.update(customerRef, { total_balance: increment(diff) });
+    }
+  }
+
+  // Save locally immediately for snappy UI
   LOCAL.save(s);
 
   try {
-    await setDoc(doc(db, 'customers', customerId, 'daily_records', date), { date, ...data }, { merge: true });
-    const [y, m] = date.split('-').map(Number);
-    await updateMonthlySummary(customerId, y, m);
+    await batch.commit();
+    console.log("✅ Cloud Sync Successful");
+    
+    // 4. Background Summary updates
+    for (const update of updates) {
+      try {
+        await updateMonthlySummary(update.customerId, y, m);
+      } catch (err) {
+        console.warn(`Summary update failed for ${update.customerId}`, err);
+      }
+    }
   } catch (err) {
-    console.error("Firebase saveDailyRecord error", err);
+    console.error("❌ Cloud Sync Failed", err);
+    throw err;
   }
 }
 
