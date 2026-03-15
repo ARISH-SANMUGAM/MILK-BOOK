@@ -1,6 +1,6 @@
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { 
-  collection, doc, getDocs, getDoc, setDoc, addDoc, deleteDoc, query, where, orderBy, increment, writeBatch 
+  collection, doc, getDocs, getDoc, setDoc, addDoc, deleteDoc, query, where, orderBy, increment, writeBatch, count
 } from 'firebase/firestore';
 
 // ─── Types ────────────────────────────────────────────────
@@ -65,7 +65,7 @@ export interface MonthlySummary {
 }
 
 // ─── Local Storage ────────────────────────────────────────
-const LOCAL_STORAGE_KEY = 'milkbook_v3'; // Incremented version for React
+const LOCAL_STORAGE_KEY = 'milkbook_v4'; // Scoped for multi-user
 
 const LOCAL = {
   get() {
@@ -86,14 +86,30 @@ const LOCAL = {
     return { start, end };
   },
 };
-
 export const getLocalData = () => LOCAL.get();
 
-// ─── Settings ─────────────────────────────────────────────
+// Helper for scoped paths
+const getPaths = () => {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Authentication required");
+  return {
+    userDoc: doc(db, 'users', user.uid),
+    customersCol: collection(db, 'users', user.uid, 'customers'),
+    settingsDoc: doc(db, 'users', user.uid, 'settings', 'config'),
+    customerDoc: (id: string) => doc(db, 'users', user.uid, 'customers', id),
+    dailyRecordsCol: (id: string) => collection(db, 'users', user.uid, 'customers', id, 'daily_records'),
+    dailyRecordDoc: (cid: string, date: string) => doc(db, 'users', user.uid, 'customers', cid, 'daily_records', date),
+    paymentsCol: (id: string) => collection(db, 'users', user.uid, 'customers', id, 'payments'),
+    paymentDoc: (cid: string, pid: string) => doc(db, 'users', user.uid, 'customers', cid, 'payments', pid),
+    monthlySummariesCol: (id: string) => collection(db, 'users', user.uid, 'customers', id, 'monthly_records'),
+    monthlySummaryDoc: (cid: string, key: string) => doc(db, 'users', user.uid, 'customers', cid, 'monthly_records', key),
+  };
+};
 export async function getSettings(): Promise<Settings> {
   const localSettings = LOCAL.get().settings;
   try {
-    const snap = await getDoc(doc(db, 'settings', 'config'));
+    const { settingsDoc } = getPaths();
+    const snap = await getDoc(settingsDoc);
     return snap.exists() ? (snap.data() as Settings) : localSettings;
   } catch {
     return localSettings;
@@ -106,7 +122,8 @@ export async function saveSettings(data: Partial<Settings>): Promise<void> {
   LOCAL.save(s);
 
   try {
-    await setDoc(doc(db, 'settings', 'config'), data, { merge: true });
+    const { settingsDoc } = getPaths();
+    await setDoc(settingsDoc, data, { merge: true });
   } catch (err) {
     console.error("Firebase saveSettings error", err);
   }
@@ -115,7 +132,8 @@ export async function saveSettings(data: Partial<Settings>): Promise<void> {
 // ─── Customers ────────────────────────────────────────────
 export async function getCustomers(includeHidden = false): Promise<Customer[]> {
   try {
-    const snap = await getDocs(collection(db, 'customers'));
+    const { customersCol } = getPaths();
+    const snap = await getDocs(customersCol);
     const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Customer));
 
     const s = LOCAL.get();
@@ -151,22 +169,30 @@ export async function getCustomers(includeHidden = false): Promise<Customer[]> {
 export async function saveCustomer(data: Partial<Customer>): Promise<string> {
   const { id, ...rest } = data;
   const payload = { ...rest, total_balance: rest.total_balance ?? 0 };
+  const { customersCol, customerDoc } = getPaths();
 
   try {
     if (id) {
-      await setDoc(doc(db, 'customers', id), payload, { merge: true });
+      await setDoc(customerDoc(id), payload, { merge: true });
       const s = LOCAL.get();
       s.customers[id] = { ...(s.customers[id] || {}), ...payload, id };
       LOCAL.save(s);
       return id;
     } else {
-      const ref = await addDoc(collection(db, 'customers'), payload);
+      // 🚨 Customer Limit Check (70 per user)
+      const list = await getCustomers();
+      if (list.length >= 70) {
+        throw new Error("Customer limit reached (70). Upgrade to pro for more.");
+      }
+      
+      const ref = await addDoc(customersCol, payload);
       const s = LOCAL.get();
       s.customers[ref.id] = { ...payload, id: ref.id };
       LOCAL.save(s);
       return ref.id;
     }
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message.includes("limit reached")) throw err;
     const custId = id || ('cust_' + Date.now());
     const s = LOCAL.get();
     s.customers[custId] = { ...(s.customers[custId] || {}), ...payload, id: custId };
@@ -184,10 +210,13 @@ export async function deleteCustomer(id: string): Promise<void> {
   LOCAL.save(s);
 
   try {
-    const customerDocRef = doc(db, 'customers', id);
-    const subCollections = ['payments', 'daily_records', 'monthly_records'];
-    for (const sub of subCollections) {
-      const snap = await getDocs(collection(customerDocRef, sub));
+    const { customerDoc, dailyRecordsCol, paymentsCol, monthlySummariesCol } = getPaths();
+    const customerDocRef = customerDoc(id);
+    
+    // Batch delete subcollections
+    const subs = [dailyRecordsCol(id), paymentsCol(id), monthlySummariesCol(id)];
+    for (const colRef of subs) {
+      const snap = await getDocs(colRef);
       await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
     }
     await deleteDoc(customerDocRef);
@@ -244,11 +273,12 @@ export async function saveDailyRecord(customerId: string, date: string, data: Pa
     }
 
     // 3. Queue Cloud Batch
-    const recordRef = doc(db, 'customers', customerId, 'daily_records', date);
+    const { dailyRecordDoc, customerDoc } = getPaths();
+    const recordRef = dailyRecordDoc(customerId, date);
     batch.set(recordRef, { date, ...cloudData }, { merge: true });
 
     if (diff !== 0) {
-      const customerRef = doc(db, 'customers', customerId);
+      const customerRef = customerDoc(customerId);
       batch.update(customerRef, { total_balance: increment(diff) });
     }
   }
@@ -276,7 +306,8 @@ export async function saveDailyRecord(customerId: string, date: string, data: Pa
 
 export async function getDailyRecord(customerId: string, date: string): Promise<DailyRecord | null> {
   try {
-    const snap = await getDoc(doc(db, 'customers', customerId, 'daily_records', date));
+    const { dailyRecordDoc } = getPaths();
+    const snap = await getDoc(dailyRecordDoc(customerId, date));
     return snap.exists() ? (snap.data() as DailyRecord) : null;
   } catch {
     const s = LOCAL.get();
@@ -287,8 +318,9 @@ export async function getDailyRecord(customerId: string, date: string): Promise<
 export async function getDailyRecords(customerId: string, year: number, month: number): Promise<DailyRecord[]> {
   const { start, end } = LOCAL.monthBounds(year, month);
   try {
+    const { dailyRecordsCol } = getPaths();
     const q = query(
-      collection(db, 'customers', customerId, 'daily_records'),
+      dailyRecordsCol(customerId),
       where('date', '>=', start),
       where('date', '<=', end),
       orderBy('date', 'asc')
@@ -319,18 +351,15 @@ export async function recordPayment(customerId: string, paymentData: any): Promi
   LOCAL.save(s);
 
   try {
-    const currentSnap = await getDoc(doc(db, 'customers', customerId));
-    const currentData = currentSnap.data();
-    const currentBalance = currentData?.total_balance || 0;
+    const { customerDoc, paymentDoc } = getPaths();
+    const batch = writeBatch(db);
     
-    // Safety check: if system is strict, we could prevent overpayment here,
-    // but we'll do it primarily in the UI.
-    
-    await setDoc(doc(db, 'customers', customerId), {
+    batch.update(customerDoc(customerId), {
       total_balance: increment(-parseFloat(amount)),
-    }, { merge: true });
+    });
 
-    await setDoc(doc(db, 'customers', customerId, 'payments', payId), payload);
+    batch.set(paymentDoc(customerId, payId), payload);
+    await batch.commit();
 
     if (date) {
       const [py, pm] = date.split('-').map(Number);
@@ -350,7 +379,8 @@ export async function recordPayment(customerId: string, paymentData: any): Promi
 
 export async function getPayments(customerId: string, year?: number, month?: number): Promise<Payment[]> {
   try {
-    let q = collection(db, 'customers', customerId, 'payments') as any;
+    const { paymentsCol } = getPaths();
+    let q = paymentsCol(customerId) as any;
     if (year && month) {
       q = query(q, where('year', '==', year), where('month', '==', month));
     }
@@ -409,7 +439,8 @@ export async function updateMonthlySummary(customerId: string, year: number, mon
   LOCAL.save(s);
 
   try {
-    await setDoc(doc(db, 'customers', customerId, 'monthly_records', periodKey), summary, { merge: true });
+    const { monthlySummaryDoc } = getPaths();
+    await setDoc(monthlySummaryDoc(customerId, periodKey), summary, { merge: true });
   } catch (err) {
     console.error("Firebase updateMonthlySummary error", err);
   }
@@ -420,7 +451,8 @@ export async function updateMonthlySummary(customerId: string, year: number, mon
 export async function getMonthlySummary(customerId: string, year: number, month: number): Promise<MonthlySummary | null> {
   const periodKey = `${year}-${String(month).padStart(2, '0')}`;
   try {
-    const snap = await getDoc(doc(db, 'customers', customerId, 'monthly_records', periodKey));
+    const { monthlySummaryDoc } = getPaths();
+    const snap = await getDoc(monthlySummaryDoc(customerId, periodKey));
     return snap.exists() ? (snap.data() as MonthlySummary) : null;
   } catch {
     const s = LOCAL.get();
@@ -434,14 +466,16 @@ export async function getMonthlySummary(customerId: string, year: number, month:
  */
 export async function cleanupCustomersBalance(): Promise<void> {
   try {
-    const snap = await getDocs(collection(db, 'customers'));
+    const { customersCol, customerDoc, paymentsCol } = getPaths();
+    const snap = await getDocs(customersCol);
     const updates = snap.docs.map(async (d) => {
       const data = d.data() as Customer;
       let needsUpdate = false;
       let newBalance = data.total_balance;
 
       // 1. Cleanup individual negative payments within subcollection
-      const paymentsSnap = await getDocs(collection(db, 'customers', d.id, 'payments'));
+      const pCol = paymentsCol(d.id);
+      const paymentsSnap = await getDocs(pCol);
       for (const p of paymentsSnap.docs) {
         const payData = p.data();
         if (payData.amount < 0) {
@@ -459,7 +493,7 @@ export async function cleanupCustomersBalance(): Promise<void> {
       }
 
       if (needsUpdate) {
-        await setDoc(doc(db, 'customers', d.id), { total_balance: newBalance }, { merge: true });
+        await setDoc(customerDoc(d.id), { total_balance: newBalance }, { merge: true });
         
         // Sync local storage
         const s = LOCAL.get();

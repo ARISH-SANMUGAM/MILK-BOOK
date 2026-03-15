@@ -82,6 +82,7 @@ const Customers: React.FC = () => {
           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">{customers.length} Members</p>
         </div>
         <motion.button 
+          id="tour-add-customer"
           whileTap={{ scale: 0.95 }}
           onClick={() => handleOpenModal()}
           className="bg-gradient-to-r from-[#1e1b4b] to-[#2e2a75] text-white p-2.5 rounded-xl shadow-lg flex items-center gap-2"

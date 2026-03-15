@@ -12,8 +12,10 @@ import Customers from './pages/Customers';
 import Delivery from './pages/Delivery';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
-import Statement from './pages/Statement';
 import Bills from './pages/Bills';
+import Login from './pages/Login';
+import AppTour from './components/AppTour';
+import { useAppContext } from './context/AppContext';
 
 function Navigation() {
   const navigate = useNavigate();
@@ -68,16 +70,30 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
+  const { user, loading } = useAppContext();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F1F4FF] flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
   return (
     <div className="min-h-screen bg-[#F1F4FF] pb-24 max-w-lg mx-auto shadow-2xl overflow-x-hidden relative scroll-smooth">
+      <AppTour />
       <AnimatePresence mode="wait">
         <Routes>
           <Route path="/" element={<PageWrapper><Delivery /></PageWrapper>} />
           <Route path="/customers" element={<PageWrapper><Customers /></PageWrapper>} />
           <Route path="/reports" element={<PageWrapper><Reports /></PageWrapper>} />
           <Route path="/settings" element={<PageWrapper><Settings /></PageWrapper>} />
-          <Route path="/statement" element={<PageWrapper><Statement /></PageWrapper>} />
-          <Route path="/bills" element={<PageWrapper><Statement /></PageWrapper>} />
+          <Route path="/bills" element={<PageWrapper><Bills /></PageWrapper>} />
         </Routes>
       </AnimatePresence>
       <Navigation />

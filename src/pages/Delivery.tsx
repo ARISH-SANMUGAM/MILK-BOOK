@@ -189,6 +189,7 @@ const Delivery: React.FC = () => {
 
        <div className="px-6 mb-8 relative">
          <motion.div 
+           id="tour-hero-stats"
            key={date}
            initial={{ opacity: 0, x: dragDirection > 0 ? 50 : -50 }}
            animate={{ opacity: 1, x: 0 }}
@@ -274,7 +275,7 @@ const Delivery: React.FC = () => {
       {/* 4. Session Toggle Section */}
       <div className="px-6 mb-8">
         <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3 block ml-1">Delivery Session</label>
-        <div className="bg-slate-200/50 rounded-xl p-1 flex gap-1 border border-slate-200 shadow-sm">
+        <div id="tour-session-toggle" className="bg-slate-200/50 rounded-xl p-1 flex gap-1 border border-slate-200 shadow-sm">
           <button 
             onClick={() => setActiveSession('morning')}
             className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
@@ -311,13 +312,14 @@ const Delivery: React.FC = () => {
       {/* 6. Customer Routing Cards */}
       <div className="px-5 space-y-3 pb-8">
         <AnimatePresence mode="popLayout">
-          {filteredCustomers.map((c) => {
+          {filteredCustomers.map((c, index) => {
             const s = sessionData[c.id]?.[activeSession] || { qty: 0, collected: false, noDelivery: false };
             const isDone = s.qty > 0 || s.noDelivery;
             const initials = c.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
             return (
               <motion.div 
+                id={index === 0 ? "tour-delivery-card" : undefined}
                 layout
                 key={c.id}
                 initial={{ opacity: 0, scale: 0.98 }}

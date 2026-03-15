@@ -148,6 +148,7 @@ const Reports: React.FC = () => {
         {/* 2. Formal Summary Hero Card - Swipeable */}
         <div className="px-6 mb-8 relative">
          <motion.div 
+           id="tour-report-summary"
            key={`${month}-${year}`}
            initial={{ opacity: 0, x: dragDirection > 0 ? 50 : -50 }}
            animate={{ opacity: 1, x: 0 }}
@@ -229,7 +230,7 @@ const Reports: React.FC = () => {
 
       {/* 4. Customer List (Formal Style) */}
       <div className="px-6 space-y-3">
-        {filteredCustomers.map((c) => {
+        {filteredCustomers.map((c, index) => {
           const summ = customerSummaries[c.id];
           const monthDue = (summ?.current_bill || 0) - (summ?.total_paid || 0);
           // A month is only pending if its own bill is unpaid AND the customer still owes money overall
@@ -244,6 +245,7 @@ const Reports: React.FC = () => {
 
             return (
               <motion.div 
+                id={index === 0 ? "tour-report-item" : undefined}
                 key={c.id}
                 whileTap={{ scale: 0.99 }}
                 onClick={() => openCustomerReport(c)}

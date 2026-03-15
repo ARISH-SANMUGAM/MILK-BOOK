@@ -132,6 +132,7 @@ const Settings: React.FC = () => {
                     <div className="relative">
                        <Building2 size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                        <input 
+                        id="tour-business-name"
                         type="text"
                         value={formData.businessName}
                         placeholder="e.g. PureMilk Dairy" 
@@ -185,6 +186,7 @@ const Settings: React.FC = () => {
                     <div className="relative">
                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">₹</div>
                        <input 
+                        id="tour-milk-rate"
                         type="number"
                         disabled={new Date().getDate() !== 1 || (settings.lastRateChangeMonth === new Date().toISOString().slice(0, 7) && (settings.dailyChangeCount || 0) >= 3)}
                         value={formData.rate}
@@ -229,6 +231,7 @@ const Settings: React.FC = () => {
                      <div className="space-y-2">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight ml-1">UPI ID (VPA)</label>
                         <input 
+                          id="tour-upi-id"
                           type="text"
                           value={formData.upiId}
                           placeholder="e.g. name@upi"
