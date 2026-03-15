@@ -313,7 +313,7 @@ const Delivery: React.FC = () => {
       <div className="px-5 space-y-3 pb-8">
         <AnimatePresence mode="popLayout">
           {filteredCustomers.length === 0 && (
-            <div id="tour-delivery-card" className="bg-white rounded-xl p-8 border border-dashed border-slate-300 text-center">
+            <div id="tour-delivery-item" className="bg-white rounded-xl p-8 border border-dashed border-slate-300 text-center">
               <Users className="mx-auto text-slate-300 mb-2" size={32} />
               <p className="text-sm font-bold text-slate-400">Add customers to see them here during the tour!</p>
             </div>
@@ -325,7 +325,7 @@ const Delivery: React.FC = () => {
 
             return (
               <motion.div 
-                id={index === 0 ? "tour-delivery-card" : undefined}
+                id={index === 0 ? "tour-delivery-item" : undefined}
                 layout
                 key={c.id}
                 initial={{ opacity: 0, scale: 0.98 }}

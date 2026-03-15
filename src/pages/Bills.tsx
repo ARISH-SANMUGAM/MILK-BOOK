@@ -158,7 +158,7 @@ const Bills: React.FC = () => {
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Fetching Bills...</p>
           </div>
         ) : (
-          filteredCustomers.map(customer => {
+          filteredCustomers.map((customer, index) => {
             const summ = customerSummaries[customer.id];
             if (!summ) return null;
 
@@ -197,6 +197,7 @@ const Bills: React.FC = () => {
 
                   <div className="grid grid-cols-2 divide-x divide-slate-100">
                      <button 
+                        id={index === 0 ? "tour-whatsapp-btn" : undefined}
                         onClick={() => shareOnWhatsApp(customer, summ)}
                         className="py-4 flex flex-col items-center justify-center gap-1.5 hover:bg-emerald-50 text-emerald-600 transition-colors group"
                      >
@@ -204,6 +205,7 @@ const Bills: React.FC = () => {
                         <span className="text-[9px] font-bold uppercase tracking-widest">WhatsApp</span>
                      </button>
                      <button 
+                        id={index === 0 ? "tour-download-btn" : undefined}
                         onClick={() => handleDownloadReport(customer, summ)}
                         className="py-4 flex flex-col items-center justify-center gap-1.5 hover:bg-indigo-50 text-[#1e1b4b] transition-colors group"
                      >

@@ -56,6 +56,20 @@ const Customers: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent same name or number
+    const isDuplicateName = customers.find(c => c.id !== editingCustomer?.id && c.name.toLowerCase() === formData.name.toLowerCase());
+    const isDuplicatePhone = customers.find(c => c.id !== editingCustomer?.id && c.phone === formData.phone);
+
+    if (isDuplicateName) {
+      alert("A customer with this name already exists.");
+      return;
+    }
+    if (isDuplicatePhone) {
+      alert("A customer with this phone number already exists.");
+      return;
+    }
+
     await saveCustomer({
       id: editingCustomer?.id,
       ...formData

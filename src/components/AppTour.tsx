@@ -41,7 +41,7 @@ const AppTour: React.FC = () => {
       content: 'Step 5: On the Delivery page, you can toggle between Morning and Evening milk distribution.',
     },
     {
-      target: '#tour-delivery-card',
+      target: '#tour-delivery-item',
       content: 'Step 6: Simply adjust the liters for each member. Your data is synced to the cloud instantly!',
     },
     {
@@ -50,7 +50,20 @@ const AppTour: React.FC = () => {
     },
     {
       target: '#tour-report-item',
-      content: 'Step 8: Click on a customer to view their detailed statement and record payments. Your tour is complete!',
+      content: 'Step 8: Click on a customer to view their statement and record payments. Next, let\'s check out Digital Bills!',
+    },
+    {
+      target: 'body',
+      content: 'Step 9: In the Digital Bills section, you can manage all monthly member statements in one place.',
+      placement: 'center',
+    },
+    {
+      target: '#tour-whatsapp-btn',
+      content: 'Step 10: Instantly send a professional professional summary to your customer via WhatsApp!',
+    },
+    {
+      target: '#tour-download-btn',
+      content: 'Step 11: Or download a beautiful PDF report with your business name and QR code for printing. Your tour is now complete!',
     },
   ], []);
 
@@ -92,6 +105,8 @@ const AppTour: React.FC = () => {
         if (location.pathname !== '/') navigate('/');
       } else if (nextIndex >= 7 && nextIndex <= 8) {
         if (location.pathname !== '/reports') navigate('/reports');
+      } else if (nextIndex >= 9 && nextIndex <= 11) {
+        if (location.pathname !== '/bills') navigate('/bills');
       }
       
       setStepIndex(nextIndex);
