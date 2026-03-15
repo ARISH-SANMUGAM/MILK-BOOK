@@ -16,7 +16,8 @@ import {
   ArrowLeft,
   Milk,
   User,
-  CheckCircle2
+  CheckCircle2,
+  Users
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { getMonthlySummary, updateMonthlySummary, recordPayment, MonthlySummary } from '../services/db';
@@ -230,6 +231,12 @@ const Reports: React.FC = () => {
 
       {/* 4. Customer List (Formal Style) */}
       <div className="px-6 space-y-3">
+        {filteredCustomers.length === 0 && (
+          <div id="tour-report-item" className="bg-white rounded-xl p-8 border border-dashed border-slate-300 text-center">
+            <Users className="mx-auto text-slate-300 mb-2" size={32} />
+            <p className="text-sm font-bold text-slate-400">Customer reports will appear here after they are added.</p>
+          </div>
+        )}
         {filteredCustomers.map((c, index) => {
           const summ = customerSummaries[c.id];
           const monthDue = (summ?.current_bill || 0) - (summ?.total_paid || 0);

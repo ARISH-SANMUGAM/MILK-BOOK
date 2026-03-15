@@ -312,6 +312,12 @@ const Delivery: React.FC = () => {
       {/* 6. Customer Routing Cards */}
       <div className="px-5 space-y-3 pb-8">
         <AnimatePresence mode="popLayout">
+          {filteredCustomers.length === 0 && (
+            <div id="tour-delivery-card" className="bg-white rounded-xl p-8 border border-dashed border-slate-300 text-center">
+              <Users className="mx-auto text-slate-300 mb-2" size={32} />
+              <p className="text-sm font-bold text-slate-400">Add customers to see them here during the tour!</p>
+            </div>
+          )}
           {filteredCustomers.map((c, index) => {
             const s = sessionData[c.id]?.[activeSession] || { qty: 0, collected: false, noDelivery: false };
             const isDone = s.qty > 0 || s.noDelivery;

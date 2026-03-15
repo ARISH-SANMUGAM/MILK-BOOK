@@ -1,15 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride';
 import { useAppContext } from '../context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const AppTour: React.FC = () => {
-  const { showTour, setShowTour, user } = useAppContext();
+  const { showTour, setShowTour, user, settings, customers } = useAppContext();
   const navigate = useNavigate();
   const location = useLocation();
   const [stepIndex, setStepIndex] = React.useState(0);
 
-  const steps: Step[] = [
+  const steps: Step[] = React.useMemo(() => [
     {
       target: 'body',
       content: 'Welcome to MilkBook! Let\'s set up your dairy business in 2 minutes.',
@@ -17,72 +17,102 @@ const AppTour: React.FC = () => {
     },
     {
       target: '#tour-business-name',
-      content: 'Step 1: Enter your Business Name. This will be shown on all customer bills.',
+      content: 'Step 1 (Mandatory): Enter your Business Name. This will be shown on all customer bills.',
       disableBeacon: true,
+      spotlightClicks: true,
     },
     {
       target: '#tour-upi-id',
-      content: 'Step 2: Add your UPI ID (e.g., yourname@okaxis). We will generate a QR code for your customers automatically!',
+      content: 'Step 2 (Mandatory): Add your UPI ID (e.g., yourname@okaxis). We will generate a QR code for your customers automatically!',
+      spotlightClicks: true,
     },
     {
       target: '#tour-milk-rate',
-      content: 'Step 3: Set your Milk Rate per Litre. Note: You can only change this on the 1st of each month!',
+      content: 'Step 3 (Mandatory): Set your Milk Rate per Litre. This is your default selling price.',
+      spotlightClicks: true,
     },
     {
       target: '#tour-add-customer',
-      content: 'Now, let\'s add your customers. Try adding at least 2 customers to see how the list management works! You can click "Add New" even while this tour is running.',
+      content: 'Step 4 (Mandatory): Time to add your members! Please add at least 2 customers now to see how MilkBook manages your route.',
       spotlightClicks: true,
     },
     {
       target: '#tour-session-toggle',
-      content: 'In the Delivery page, you can toggle between Morning and Evening milk distribution.',
+      content: 'Step 5: On the Delivery page, you can toggle between Morning and Evening milk distribution.',
     },
     {
       target: '#tour-delivery-card',
-      content: 'Simply adjust the liters for each member. Your data is synced to the cloud instantly!',
+      content: 'Step 6: Simply adjust the liters for each member. Your data is synced to the cloud instantly!',
     },
     {
       target: '#tour-report-summary',
-      content: 'Finally, view your monthly collection summary and outstanding balances here.',
+      content: 'Step 7: View your monthly collection summary and outstanding balances here.',
     },
     {
       target: '#tour-report-item',
-      content: 'Click on a customer to view their detailed statement and record payments. Your tour is complete!',
+      content: 'Step 8: Click on a customer to view their detailed statement and record payments. Your tour is complete!',
     },
-  ];
+  ], []);
 
-  const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status, step, type, index, action } = data;
+  const handleJoyrideCallback = React.useCallback((data: CallBackProps) => {
+    const { status, type, index, action } = data;
+
+    if (type === 'step:after') {
+      // VALIDATION LOGIC
+      if (action === 'next') {
+        if (index === 1 && !settings.businessName) {
+          alert('Please enter your Business Name before proceeding.');
+          setStepIndex(1);
+          return;
+        }
+        if (index === 2 && !settings.upiId) {
+          alert('Please enter your UPI ID for QR payments.');
+          setStepIndex(2);
+          return;
+        }
+        if (index === 3 && !settings.rate) {
+          alert('Please set your Milk Rate.');
+          setStepIndex(3);
+          return;
+        }
+        if (index === 4 && customers.length < 2) {
+          alert(`Please add at least 2 customers. You currently have ${customers.length}.`);
+          setStepIndex(4);
+          return;
+        }
+      }
+
+      const nextIndex = index + (action === 'prev' ? -1 : 1);
+      
+      if (nextIndex >= 1 && nextIndex <= 3) {
+        if (location.pathname !== '/settings') navigate('/settings');
+      } else if (nextIndex === 4) {
+        if (location.pathname !== '/customers') navigate('/customers');
+      } else if (nextIndex >= 5 && nextIndex <= 6) {
+        if (location.pathname !== '/') navigate('/');
+      } else if (nextIndex >= 7 && nextIndex <= 8) {
+        if (location.pathname !== '/reports') navigate('/reports');
+      }
+      
+      setStepIndex(nextIndex);
+    }
 
     if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any)) {
+      if (customers.length < 2 || !settings.upiId || !settings.businessName) {
+         alert("You must complete all required fields and add at least 2 customers before starting.");
+         setShowTour(true);
+         setStepIndex(1);
+         return;
+      }
       setShowTour(false);
       if (user) {
          localStorage.setItem(`tour_seen_${user.uid}`, 'true');
       }
     }
+  }, [user, location.pathname, navigate, setShowTour, settings, customers]);
 
-    if (type === 'step:after') {
-      const nextIndex = index + 1;
-      setStepIndex(nextIndex);
-
-      if (index === 0) {
-        navigate('/settings');
-      } else if (index === 3) {
-        navigate('/customers');
-      } else if (index === 4) {
-        navigate('/delivery');
-      } else if (index === 6) {
-        navigate('/reports');
-      }
-    } else if (type === 'step:before' && action === 'prev') {
-        const prevIndex = index - 1;
-        setStepIndex(prevIndex);
-        if (prevIndex === 0) navigate('/');
-        if (prevIndex === 1) navigate('/settings');
-        if (prevIndex === 4) navigate('/customers');
-        if (prevIndex === 5) navigate('/delivery');
-    }
-  };
+  // Sync stepIndex if user manually navigates? 
+  // No, let Joyride control it.
 
   return (
     <Joyride
@@ -95,6 +125,9 @@ const AppTour: React.FC = () => {
       showSkipButton
       callback={handleJoyrideCallback}
       disableScrolling={false}
+      disableOverlayClose={true}
+      disableCloseOnEsc={true}
+      hideCloseButton={true}
       styles={{
         options: {
           primaryColor: '#1e1b4b',

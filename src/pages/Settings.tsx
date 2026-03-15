@@ -188,7 +188,7 @@ const Settings: React.FC = () => {
                        <input 
                         id="tour-milk-rate"
                         type="number"
-                        disabled={new Date().getDate() !== 1 || (settings.lastRateChangeMonth === new Date().toISOString().slice(0, 7) && (settings.dailyChangeCount || 0) >= 3)}
+                        disabled={settings.lastRateChangeMonth && new Date().getDate() !== 1 || (settings.lastRateChangeMonth === new Date().toISOString().slice(0, 7) && (settings.dailyChangeCount || 0) >= 3)}
                         value={formData.rate}
                         onChange={(e) => {
                           const val = parseFloat(e.target.value);
@@ -217,9 +217,14 @@ const Settings: React.FC = () => {
                             : 'bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:border-indigo-500'
                         }`}
                       />
-                      {new Date().getDate() !== 1 && (
+                      {settings.lastRateChangeMonth && new Date().getDate() !== 1 && (
                         <p className="mt-2 text-[10px] text-amber-600 font-bold flex items-center gap-1">
-                          <Info size={12} /> Rate updates are only allowed on the 1st of the month.
+                          <Info size={12} /> Subsequent rate updates are only allowed on the 1st of the month (Max 3 times).
+                        </p>
+                      )}
+                      {!settings.lastRateChangeMonth && (
+                        <p className="mt-2 text-[10px] text-indigo-600 font-bold flex items-center gap-1">
+                          <Info size={12} /> Set your initial rate now. You can change it later on the 1st of any month.
                         </p>
                       )}
                     </div>

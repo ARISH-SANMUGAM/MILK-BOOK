@@ -19,7 +19,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [settings, setSettings] = useState<Settings>({ rate: 60, businessName: 'MilkBook', address: '' });
+  const [settings, setSettings] = useState<Settings>({ rate: 0, businessName: '', address: '' });
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTour, setShowTour] = useState(false);
@@ -50,7 +50,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } else {
         setCustomers([]);
-        setSettings({ rate: 60, businessName: 'MilkBook', address: '' });
+        setSettings({ rate: 0, businessName: '', address: '' });
       }
       setLoading(false);
     });
