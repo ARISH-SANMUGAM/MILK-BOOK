@@ -35,25 +35,30 @@ const Bills: React.FC = () => {
   const year = selectedDate.getFullYear();
 
   const handlePrintAll = async () => {
-    const activeData = filteredCustomers
-      .map(customer => ({
-        customer,
-        summary: customerSummaries[customer.id]
-      }))
-      .filter(item => item.summary);
+    try {
+      const activeData = filteredCustomers
+        .map(customer => ({
+          customer,
+          summary: customerSummaries[customer.id]
+        }))
+        .filter(item => item.summary);
 
-    if (activeData.length === 0) return alert("No bills to print");
+      if (activeData.length === 0) return alert("No bills to print");
 
-    await generateBulkInvoicesPDF(activeData, {
-      periodLabel: `${getMonthName(month)} ${year}`,
-      rate: settings.rate,
-      businessName: settings.businessName,
-      address: settings.address,
-      paymentQr: settings.paymentQr,
-      upiId: settings.upiId,
-      month,
-      year
-    });
+      await generateBulkInvoicesPDF(activeData, {
+        periodLabel: `${getMonthName(month)} ${year}`,
+        rate: settings.rate,
+        businessName: settings.businessName,
+        address: settings.address,
+        paymentQr: settings.paymentQr,
+        upiId: settings.upiId,
+        month,
+        year
+      });
+    } catch (err) {
+      console.error('Print All failed:', err);
+      alert('Failed to generate PDF. Check console for details.');
+    }
   };
 
   useEffect(() => {
@@ -108,12 +113,15 @@ const Bills: React.FC = () => {
   };
 
   const handleDownloadReport = async (customer: any, summ: MonthlySummary) => {
-     const monthlyBill = summ.current_bill || 0;
-     const monthlyPaid = summ.total_paid || 0;
-     const netBalance = customer.total_balance || 0;
-     const oldBalance = Math.max(0, netBalance - (monthlyBill - monthlyPaid));
+    try {
+      const monthlyBill = summ.current_bill || 0;
+      const monthlyPaid = summ.total_paid || 0;
+      const netBalance = customer.total_balance || 0;
+      const oldBalance = Math.max(0, netBalance - (monthlyBill - monthlyPaid));
 
-     await generateIndividualPDF(customer, summ.daily_entries || [], {
+      console.log('Generating PDF for:', customer.name, { month, year, rate: settings.rate });
+
+      await generateIndividualPDF(customer, summ.daily_entries || [], {
         periodLabel: `${getMonthName(month)} ${year}`,
         rate: settings.rate,
         month,
@@ -124,7 +132,13 @@ const Bills: React.FC = () => {
         upiId: settings.upiId,
         oldBalance,
         totalBalance: netBalance
-     });
+      });
+
+      console.log('PDF generated successfully for:', customer.name);
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+      alert('Failed to generate PDF. Check console for details.');
+    }
   };
 
   const filteredCustomers = useMemo(() => {

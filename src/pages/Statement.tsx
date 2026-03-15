@@ -37,22 +37,26 @@ const StatementCard = ({ customer, summ, settings, month, year }: any) => {
   };
 
   const pendingAmount = summ.pending_balance;
-  const dynamicQr = settings.upiId && pendingAmount > 0 
+  const dynamicQr = settings.upiId && pendingAmount > 0
     ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`upi://pay?pa=${settings.upiId}&pn=${settings.businessName}&cu=INR&am=${pendingAmount}`)}`
     : settings.paymentQr;
 
-  const handleDownloadReport = () => {
-     generateIndividualPDF(customer, summ.daily_entries, {
+  const handleDownloadReport = async () => {
+    try {
+      await generateIndividualPDF(customer, summ.daily_entries || [], {
         periodLabel: `${getMonthName(month)} ${year}`,
         rate: settings.rate,
-        dateRange: {
-          start: `${year}-${String(month).padStart(2, '0')}-01`,
-          end: `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`
-        },
+        month,
+        year,
         businessName: settings.businessName,
         address: settings.address,
-        paymentQr: dynamicQr
-     });
+        paymentQr: dynamicQr,
+        upiId: settings.upiId,
+        totalBalance: summ.pending_balance
+      });
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+    }
   };
 
   const leftCol = summ.daily_entries.slice(0, 16);
