@@ -20,7 +20,8 @@ import {
   BarChart3,
   Settings as SettingsIcon,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  Phone
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { saveBatchDailyRecords, getDailyRecord } from '../services/db';
@@ -56,8 +57,8 @@ const Delivery: React.FC = () => {
           };
         } else {
           newData[c.id] = {
-            morning: { qty: c.default_qty || 0, collected: false, noDelivery: false },
-            evening: { qty: c.default_qty || 0, collected: false, noDelivery: false }
+            morning: { qty: 0, collected: false, noDelivery: false },
+            evening: { qty: 0, collected: false, noDelivery: false }
           };
         }
       }
@@ -117,6 +118,15 @@ const Delivery: React.FC = () => {
   const changeDay = (offset: number) => {
     const d = new Date(date);
     d.setDate(d.getDate() + offset);
+    
+    // Prevent future dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const newDate = new Date(d);
+    newDate.setHours(0, 0, 0, 0);
+
+    if (newDate > today) return; 
+
     setDate(formatDate(d, 'iso'));
   };
 
@@ -253,7 +263,10 @@ const Delivery: React.FC = () => {
            {/* Swipe Indicators */}
            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 opacity-20 group-hover:opacity-40 transition-opacity">
               <ChevronLeft size={10} />
-              <span className="text-[8px] font-bold uppercase tracking-widest">Swipe for Previous Day</span>
+              <span className="text-[8px] font-bold uppercase tracking-widest">
+                {!isToday ? 'Swipe to Change Date' : 'Swipe for Previous Day'}
+              </span>
+              {!isToday && <ChevronRight size={10} />}
            </div>
          </motion.div>
        </div>
@@ -320,6 +333,12 @@ const Delivery: React.FC = () => {
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{c.address || 'Standard Route'}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <a 
+                      href={`tel:${c.phone}`}
+                      className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 hover:bg-emerald-100 transition-colors"
+                    >
+                      <Phone size={14} fill="currentColor" />
+                    </a>
                     <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-300 flex items-center justify-center text-[10px] font-bold text-slate-600">
                       {initials}
                     </div>

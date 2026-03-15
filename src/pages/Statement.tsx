@@ -253,6 +253,8 @@ const Statement: React.FC = () => {
 
   const handleNextMonth = () => {
     const { m, y } = getNextMonth(month, year);
+    const today = new Date();
+    if (y > today.getFullYear() || (y === today.getFullYear() && m > today.getMonth() + 1)) return;
     setSelectedDate(new Date(y, m - 1));
   };
 

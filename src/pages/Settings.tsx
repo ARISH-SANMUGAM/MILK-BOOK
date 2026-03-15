@@ -173,16 +173,53 @@ const Settings: React.FC = () => {
             {activeTab === 'billing' && (
               <div className="space-y-6">
                 <section className="bg-white rounded-2xl p-6 border border-slate-900/10 space-y-6">
-                   <div className="space-y-2">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Standard Milk Rate (₹/L)</label>
+                   <div className="space-y-4">
+                    <div className="flex items-center justify-between ml-1">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Standard Milk Rate (₹/L)</label>
+                      {new Date().getDate() === 1 && (
+                        <span className="text-[10px] font-bold text-indigo-500 uppercase">
+                          {3 - (settings.dailyChangeCount || 0)} Changes Left
+                        </span>
+                      )}
+                    </div>
                     <div className="relative">
                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">₹</div>
                        <input 
                         type="number"
+                        disabled={new Date().getDate() !== 1 || (settings.lastRateChangeMonth === new Date().toISOString().slice(0, 7) && (settings.dailyChangeCount || 0) >= 3)}
                         value={formData.rate}
-                        onChange={(e) => setFormData({...formData, rate: parseFloat(e.target.value)})}
-                        className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-xl text-2xl font-bold text-slate-800 outline-none tabular-nums"
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (isNaN(val)) return;
+                          
+                          const today = new Date();
+                          const currentMonth = today.toISOString().slice(0, 7);
+                          const prevMonth = settings.lastRateChangeMonth || '';
+                          const prevCount = settings.dailyChangeCount || 0;
+                          
+                          let newCount = 1;
+                          if (prevMonth === currentMonth) {
+                            newCount = prevCount + 1;
+                          }
+
+                          setFormData({
+                            ...formData, 
+                            rate: val,
+                            lastRateChangeMonth: currentMonth,
+                            dailyChangeCount: newCount
+                          });
+                        }}
+                        className={`w-full pl-10 pr-4 py-4 rounded-xl text-2xl font-bold outline-none tabular-nums transition-all ${
+                          new Date().getDate() !== 1 
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200' 
+                            : 'bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:border-indigo-500'
+                        }`}
                       />
+                      {new Date().getDate() !== 1 && (
+                        <p className="mt-2 text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                          <Info size={12} /> Rate updates are only allowed on the 1st of the month.
+                        </p>
+                      )}
                     </div>
                   </div>
 

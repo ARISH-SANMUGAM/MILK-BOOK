@@ -30,7 +30,6 @@ const Customers: React.FC = () => {
     name: '',
     phone: '',
     address: '',
-    default_qty: 1,
     total_balance: 0
   });
 
@@ -46,12 +45,11 @@ const Customers: React.FC = () => {
         name: customer.name,
         phone: customer.phone,
         address: customer.address,
-        default_qty: customer.default_qty || 1,
         total_balance: customer.total_balance || 0
       });
     } else {
       setEditingCustomer(null);
-      setFormData({ name: '', phone: '', address: '', default_qty: 1, total_balance: 0 });
+      setFormData({ name: '', phone: '', address: '', total_balance: 0 });
     }
     setIsModalOpen(true);
   };
@@ -210,8 +208,7 @@ const Customers: React.FC = () => {
                         placeholder="Customer name"
                       />
                    </div>
-                   <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
+                       <div className="space-y-1.5 col-span-2">
                         <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Contact Number</label>
                         <input 
                           required
@@ -222,18 +219,6 @@ const Customers: React.FC = () => {
                           placeholder="Phone number"
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Daily Qty (L)</label>
-                        <input 
-                          required
-                          type="number" 
-                          step="0.5"
-                          value={formData.default_qty}
-                          onChange={(e) => setFormData({...formData, default_qty: parseFloat(e.target.value)})}
-                          className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white focus:border-[#1e1b4b] outline-none transition-all font-semibold text-slate-700"
-                        />
-                      </div>
-                   </div>
                    <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Delivery Address</label>
                       <textarea 
@@ -244,17 +229,7 @@ const Customers: React.FC = () => {
                         placeholder="Street address..."
                       />
                    </div>
-                   {editingCustomer && (
-                     <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Adjust Balance (₹)</label>
-                        <input 
-                          type="number" 
-                          value={formData.total_balance}
-                          onChange={(e) => setFormData({...formData, total_balance: parseFloat(e.target.value)})}
-                          className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold text-rose-600"
-                        />
-                     </div>
-                   )}
+                   {/* Balance adjustment removed */}
                 </div>
 
                 <div className="p-6 bg-slate-50 border-t border-slate-100">

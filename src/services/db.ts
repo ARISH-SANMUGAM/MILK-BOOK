@@ -9,6 +9,8 @@ export interface Settings {
   businessName: string;
   address: string;
   paymentQr?: string;
+  lastRateChangeMonth?: string;
+  dailyChangeCount?: number;
   [key: string]: any;
 }
 
@@ -17,7 +19,6 @@ export interface Customer {
   name: string;
   phone: string;
   address: string;
-  default_qty: number;
   total_balance: number;
   marked_for_deletion?: boolean;
   delete_scheduled_at?: string;
