@@ -4,13 +4,16 @@ import {
   BarChart3, 
   Settings as SettingsIcon, 
   Users, 
-  Home
+  Home,
+  FileText
 } from 'lucide-react';
 
 import Customers from './pages/Customers';
 import Delivery from './pages/Delivery';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Statement from './pages/Statement';
+import Bills from './pages/Bills';
 
 function Navigation() {
   const navigate = useNavigate();
@@ -20,6 +23,7 @@ function Navigation() {
     { id: 'delivery', label: 'Home', icon: Home, path: '/' },
     { id: 'customers', label: 'Customers', icon: Users, path: '/customers' },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
+    { id: 'bills', label: 'Bills', icon: FileText, path: '/bills' },
     { id: 'settings', label: 'Settings', icon: SettingsIcon, path: '/settings' },
   ];
 
@@ -72,6 +76,8 @@ function AppContent() {
           <Route path="/customers" element={<PageWrapper><Customers /></PageWrapper>} />
           <Route path="/reports" element={<PageWrapper><Reports /></PageWrapper>} />
           <Route path="/settings" element={<PageWrapper><Settings /></PageWrapper>} />
+          <Route path="/statement" element={<PageWrapper><Statement /></PageWrapper>} />
+          <Route path="/bills" element={<PageWrapper><Statement /></PageWrapper>} />
         </Routes>
       </AnimatePresence>
       <Navigation />

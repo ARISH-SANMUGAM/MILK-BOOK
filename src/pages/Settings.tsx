@@ -1,15 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building2, 
   MapPin, 
-  IndianRupee, 
   QrCode, 
   Database, 
   Info, 
-  Smartphone,
-  Save,
-  LogOut,
   RefreshCw,
   ChevronRight,
   ShieldCheck,
@@ -17,32 +13,41 @@ import {
   Cloud,
   Milk,
   User,
-  ArrowRight
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { saveSettings } from '../services/db';
 
 const Settings: React.FC = () => {
   const { settings, setSettings } = useAppContext();
-  const [formData, setFormData] = useState({ ...settings });
+  const [formData, setFormData] = useState({ ...settings, upiId: settings.upiId || '' });
   const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'system'>('profile');
   const [saving, setSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const isInitialMount = useRef(true);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setSaving(true);
-    try {
-      await saveSettings(formData);
-      setSettings(formData);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-    } catch (err) {
-      alert("Failed to save settings");
-    } finally {
-      setSaving(false);
+  // Auto-save logic
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
     }
-  };
+
+    const timer = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await saveSettings(formData);
+        setSettings(formData);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 2000);
+      } catch (err) {
+        console.error("Auto-save failed:", err);
+      } finally {
+        setSaving(false);
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [formData]);
 
   const clearCache = () => {
     if (window.confirm("This will clear local storage. Your data in Firebase is safe but you'll need to re-login/re-sync. Continue?")) {
@@ -50,9 +55,8 @@ const Settings: React.FC = () => {
       window.location.reload();
     }
   };
-
   return (
-    <div className="min-h-screen bg-[#F1F4FF] font-sans pb-32">
+    <div className="min-h-screen bg-[#F1F4FF] font-sans pb-32 pt-[72px]">
       {/* Toast Notification */}
       <AnimatePresence>
         {showToast && (
@@ -60,7 +64,7 @@ const Settings: React.FC = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-5 left-1/2 -translate-x-1/2 z-[300] bg-emerald-600 text-white px-6 py-3.5 rounded-xl shadow-2xl flex items-center gap-3 font-bold text-xs uppercase tracking-widest"
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-[300] bg-emerald-600 text-white px-6 py-3.5 rounded-xl shadow-2xl flex items-center gap-3 font-bold text-xs uppercase tracking-widest"
           >
             <ShieldCheck size={18} strokeWidth={2.5} />
             Settings Updated Successfully
@@ -68,20 +72,26 @@ const Settings: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* 1. Page Content area */}
-      <div className="px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
-           <h1 className="text-2xl font-bold text-[#1e1b4b]">Settings</h1>
-           <motion.button 
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleSubmit()}
-              disabled={saving}
-              className="bg-[#1e1b4b] text-white px-5 py-2.5 rounded-xl shadow-xl shadow-indigo-100 active:bg-[#2e2b5b] disabled:opacity-50 flex items-center gap-2"
-            >
-              {saving ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />}
-              <span className="text-[10px] font-bold uppercase tracking-widest">Update</span>
-            </motion.button>
-        </div>
+      {/* 1. Page Title - Fixed Header */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 max-w-lg w-full bg-[#F1F4FF]/80 backdrop-blur-md z-[100] px-6 py-4 flex items-center justify-between border-b border-indigo-100 shadow-sm">
+         <h1 className="text-xl font-bold text-[#1e1b4b]">Settings</h1>
+         <div className="flex items-center gap-2">
+            {saving ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                <RefreshCw className="animate-spin" size={12} />
+                <span className="text-[9px] font-bold uppercase tracking-widest">Saving...</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                <ShieldCheck size={12} />
+                <span className="text-[9px] font-bold uppercase tracking-widest">Saved</span>
+              </div>
+            )}
+         </div>
+      </div>
+
+      <div className="px-6 py-8">
+
 
         {/* Navigation Tabs */}
         <div className="flex bg-white rounded-xl p-1.5 border border-indigo-200 shadow-sm mb-8 overflow-x-auto no-scrollbar">
@@ -178,15 +188,47 @@ const Settings: React.FC = () => {
 
                   <div className="space-y-4 border-t border-slate-50 pt-6">
                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Digital Payment Setup</label>
-                     <div className="p-8 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-center space-y-4 group hover:bg-white hover:border-indigo-500/30 transition-all">
-                        <div className="w-14 h-14 bg-white rounded-xl shadow-sm flex items-center justify-center mx-auto text-slate-300 group-hover:text-indigo-600 border border-slate-100 transition-colors">
-                           <QrCode size={28} />
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-700 font-bold uppercase tracking-wider">UPI QR Code</p>
-                          <p className="text-[9px] text-slate-400 font-medium mt-1">Configure your receiving account QR profile</p>
-                        </div>
+                     
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight ml-1">UPI ID (VPA)</label>
+                        <input 
+                          type="text"
+                          value={formData.upiId}
+                          placeholder="e.g. name@upi"
+                          onChange={(e) => {
+                            const upi = e.target.value;
+                            setFormData({
+                              ...formData, 
+                              upiId: upi,
+                              paymentQr: upi ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`upi://pay?pa=${upi}&pn=${formData.businessName}&cu=INR`)}` : ''
+                            });
+                          }}
+                          className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none focus:bg-white focus:border-indigo-500 transition-all"
+                        />
                      </div>
+
+                     {formData.paymentQr && (
+                       <div className="p-8 bg-white rounded-2xl border border-slate-200 text-center space-y-4 shadow-sm">
+                          <img 
+                            src={formData.paymentQr} 
+                            alt="Payment QR" 
+                            className="w-32 h-32 mx-auto border-4 border-slate-50 rounded-lg p-1"
+                          />
+                          <div>
+                            <p className="text-xs text-[#1e1b4b] font-bold uppercase tracking-wider">Active UPI QR</p>
+                            <p className="text-[9px] text-slate-400 font-medium mt-1">This will be printed on customer reports</p>
+                          </div>
+                       </div>
+                     )}
+
+                     {!formData.paymentQr && (
+                       <div className="p-8 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-center space-y-4">
+                          <div className="w-14 h-14 bg-white rounded-xl shadow-sm flex items-center justify-center mx-auto text-slate-300 border border-slate-100">
+                             <QrCode size={28} />
+                          </div>
+                          <p className="text-[9px] text-slate-400 font-medium">Enter UPI ID above to generate QR</p>
+                       </div>
+                     )}
                   </div>
                 </section>
               </div>
@@ -235,19 +277,6 @@ const Settings: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      <div className="fixed bottom-24 left-0 right-0 p-6 z-[100] flex justify-center pointer-events-none">
-        <motion.button 
-          whileTap={{ scale: 0.95 }}
-          onClick={() => handleSubmit()}
-          disabled={saving}
-          className="w-full max-w-sm py-4 bg-gradient-to-r from-[#1e1b4b] to-[#2e2a75] text-white rounded-xl shadow-2xl shadow-indigo-900/40 flex items-center justify-center gap-3 pointer-events-auto transition-all disabled:opacity-50 border border-white/10"
-        >
-          {saving ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
-          <span className="text-[11px] font-bold uppercase tracking-[0.2em]">
-            {saving ? "Updating..." : "Save Changes"}
-          </span>
-        </motion.button>
-      </div>
     </div>
   );
 };

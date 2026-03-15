@@ -76,23 +76,25 @@ const Customers: React.FC = () => {
   if (loading) return null;
 
   return (
-    <div className="min-h-screen bg-[#F1F4FF] font-sans pb-32">
-      {/* 1. Page Title & Action Area */}
-      <div className="px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-[#1e1b4b]">Customers</h1>
-            <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-1">{customers.length} Registered Members</p>
-          </div>
-          <motion.button 
-            whileTap={{ scale: 0.95 }}
-            onClick={() => handleOpenModal()}
-            className="bg-gradient-to-r from-[#1e1b4b] to-[#2e2a75] text-white p-3.5 rounded-xl shadow-xl shadow-indigo-900/10 hover:opacity-90 transition-all flex items-center gap-2"
-          >
-            <Plus size={20} strokeWidth={3} />
-            <span className="text-[10px] font-bold uppercase tracking-wider pr-1">Add New</span>
-          </motion.button>
+    <div className="min-h-screen bg-[#F1F4FF] font-sans pb-32 pt-[80px]">
+      {/* 1. Page Title & Action Area - Fixed */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 max-w-lg w-full bg-[#F1F4FF]/80 backdrop-blur-md z-[100] px-6 py-4 flex items-center justify-between shadow-sm border-b border-indigo-100">
+        <div>
+          <h1 className="text-xl font-bold text-[#1e1b4b]">Customers</h1>
+          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">{customers.length} Members</p>
         </div>
+        <motion.button 
+          whileTap={{ scale: 0.95 }}
+          onClick={() => handleOpenModal()}
+          className="bg-gradient-to-r from-[#1e1b4b] to-[#2e2a75] text-white p-2.5 rounded-xl shadow-lg flex items-center gap-2"
+        >
+          <Plus size={18} strokeWidth={3} />
+          <span className="text-[9px] font-bold uppercase tracking-wider pr-1">Add New</span>
+        </motion.button>
+      </div>
+
+      <div className="px-6 py-4">
+
 
         {/* Search Field */}
         <div className="relative mb-8">

@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Download, 
-  Share2, 
   ChevronRight, 
   Search, 
-  FileText, 
   Wallet,
   Calendar,
   ChevronLeft,
   X,
   Phone,
-  MessageCircle,
   TrendingUp,
   CreditCard,
   ArrowUpRight,
@@ -24,10 +21,10 @@ import {
 import { useAppContext } from '../context/AppContext';
 import { getMonthlySummary, updateMonthlySummary, recordPayment, MonthlySummary } from '../services/db';
 import { formatCurrency, getMonthName, getPrevMonth, getNextMonth, formatDate } from '../utils/calculations';
-import { generateIndividualPDF, downloadCustomerCSV } from '../utils/reports';
 
 const Reports: React.FC = () => {
   const { customers, settings, loading, refreshCustomers } = useAppContext();
+  const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [search, setSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -36,6 +33,7 @@ const Reports: React.FC = () => {
   const [reportStats, setReportStats] = useState({ totalBill: 0, totalCollected: 0 });
   const [statsLoading, setStatsLoading] = useState(false);
   const [customerSummaries, setCustomerSummaries] = useState<Record<string, MonthlySummary>>({});
+  const [dragDirection, setDragDirection] = useState(0);
 
   const month = selectedDate.getMonth() + 1;
   const year = selectedDate.getFullYear();
@@ -115,21 +113,6 @@ const Reports: React.FC = () => {
     refreshCustomers();
   };
 
-  const shareOnWhatsApp = (customer: any, summ: MonthlySummary) => {
-    const text = `*MilkBook Report*\n` +
-      `Customer: ${customer.name}\n` +
-      `Period: ${getMonthName(month)} ${year}\n` +
-      `Total Qty: ${summ.total_litres} L\n` +
-      `Bill: ${formatCurrency(summ.current_bill)}\n` +
-      `Paid: ${formatCurrency(summ.total_paid)}\n` +
-      `Due: ${formatCurrency(summ.pending_balance)}\n\n` +
-      `Thank you!`;
-    
-    const phone = customer.phone.replace(/\D/g, '');
-    const mobile = phone.length === 10 ? `91${phone}` : phone;
-    const url = `https://wa.me/${mobile}?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
-  };
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => 
@@ -155,54 +138,82 @@ const Reports: React.FC = () => {
   if (loading) return null;
 
   return (
-    <div className="min-h-screen bg-[#F1F4FF] font-sans pb-32">
-      {/* 1. Page Title */}
-      <div className="px-6 py-10">
-        <h1 className="text-2xl font-black text-slate-800 tracking-tight">Monthly Statement</h1>
+    <div className="min-h-screen bg-[#F1F4FF] font-sans pb-32 pt-[64px]">
+      {/* 1. Page Title - Fixed */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 max-w-lg w-full bg-[#F1F4FF]/80 backdrop-blur-md z-[100] px-6 py-4 border-b border-indigo-100 flex items-center justify-between">
+        <h1 className="text-xl font-black text-slate-800 tracking-tight">Monthly Statement</h1>
       </div>
 
-      {/* 2. Formal Summary Hero Card - Emerald/Navy Calibration */}
-      <div className="px-6 mb-8">
-        <div className="bg-gradient-to-br from-[#1e1b4b] via-[#1e1b4b] to-[#2e2a75] rounded-xl p-7 text-white shadow-2xl shadow-indigo-900/20 border border-white/5 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl -mr-16 -mt-16" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-500/10 rounded-full blur-3xl -ml-12 -mb-12" />
-          
-          <div className="flex flex-col gap-6 relative z-10">
-            <div className="relative overflow-hidden p-6 rounded-lg bg-white/10 border border-white/10 shadow-inner backdrop-blur-sm">
-               <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-[0.15em] mb-1.5">Net Pending (This Month)</p>
-               <h2 className="text-3xl font-black tracking-tight text-[#ff0000]">
-                 {formatCurrency(reportStats.totalBill - reportStats.totalCollected)}
-               </h2>
-               <div className="absolute bottom-0 right-0 w-24 h-24 bg-white/5 rounded-full blur-2xl -mb-12 -mr-12" />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-8 pt-4">
-              <div>
-                <p className="text-indigo-300/70 text-[10px] font-bold uppercase tracking-wider mb-1">Monthly Billing</p>
-                <p className="text-xl font-bold text-white">{formatCurrency(reportStats.totalBill)}</p>
+      <div className="pt-6">
+        {/* 2. Formal Summary Hero Card - Swipeable */}
+        <div className="px-6 mb-8 relative">
+         <motion.div 
+           key={`${month}-${year}`}
+           initial={{ opacity: 0, x: dragDirection > 0 ? 50 : -50 }}
+           animate={{ opacity: 1, x: 0 }}
+           drag="x"
+           dragConstraints={{ left: 0, right: 0 }}
+           onDragEnd={(_, info) => {
+             if (info.offset.x > 80) {
+               setDragDirection(-1);
+               handlePrevMonth();
+             } else if (info.offset.x < -80) {
+               if (isPassedMonth) {
+                 setDragDirection(1);
+                 handleNextMonth();
+               }
+             }
+           }}
+           className="bg-gradient-to-br from-[#1e1b4b] via-[#1e1b4b] to-[#2e2a75] rounded-3xl p-7 text-white shadow-2xl shadow-indigo-900/40 border-b-4 border-white/10 relative overflow-hidden cursor-grab active:cursor-grabbing select-none"
+         >
+           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl -mr-16 -mt-16" />
+           <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-500/10 rounded-full blur-3xl -ml-12 -mb-12" />
+           
+            <div className="flex items-center justify-between mb-6 opacity-90 border-b border-white/10 pb-4 relative z-10">
+              <div className="flex items-center gap-3">
+                 <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/10">
+                    <Calendar size={18} className="text-indigo-200" />
+                 </div>
+                 <div>
+                    <p className="text-indigo-300 text-[9px] font-bold uppercase tracking-widest leading-none mb-1">Statement Period</p>
+                    <p className="text-xs font-black text-white uppercase tracking-[0.1em]">
+                      {getMonthName(month)} {year}
+                    </p>
+                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-indigo-300/70 text-[10px] font-bold uppercase tracking-wider mb-1">Total Collected</p>
-                <p className="text-xl font-bold text-emerald-400">{formatCurrency(reportStats.totalCollected)}</p>
-              </div>
             </div>
-          </div>
-        </div>
+
+           <div className="flex flex-col gap-6 relative z-10">
+             <div className="relative overflow-hidden p-6 rounded-lg bg-white/10 border border-white/10 shadow-inner backdrop-blur-sm">
+                <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-[0.15em] mb-1.5">Net Pending (This Month)</p>
+                <h2 className="text-3xl font-black tracking-tight text-[#ff0000]">
+                  {formatCurrency(reportStats.totalBill - reportStats.totalCollected)}
+                </h2>
+                <div className="absolute bottom-0 right-0 w-24 h-24 bg-white/5 rounded-full blur-2xl -mb-12 -mr-12" />
+             </div>
+             
+             <div className="grid grid-cols-2 gap-8 pt-2">
+               <div>
+                 <p className="text-indigo-300/70 text-[10px] font-bold uppercase tracking-wider mb-1">Monthly Billing</p>
+                 <p className="text-xl font-bold text-white">{formatCurrency(reportStats.totalBill)}</p>
+               </div>
+               <div className="text-right">
+                 <p className="text-indigo-300/70 text-[10px] font-bold uppercase tracking-wider mb-1">Total Collected</p>
+                 <p className="text-xl font-bold text-emerald-400">{formatCurrency(reportStats.totalCollected)}</p>
+               </div>
+             </div>
+           </div>
+
+           {/* Swipe Indicators */}
+           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 opacity-20 hover:opacity-40 transition-opacity z-10">
+              <ChevronLeft size={10} />
+              <span className="text-[8px] font-bold uppercase tracking-widest">{isPassedMonth ? 'Swipe to Change Month' : 'Swipe Right for Previous'}</span>
+              {isPassedMonth && <ChevronRight size={10} />}
+           </div>
+         </motion.div>
       </div>
 
-      {/* 3. Action Area (Month Select & Search) */}
       <div className="px-6 mb-8 flex flex-col gap-4">
-        <div className="flex items-center justify-between bg-white rounded-xl p-2 border border-slate-900/30">
-          <button onClick={handlePrevMonth} className="p-3 hover:bg-slate-50 rounded-xl transition-colors text-slate-600">
-            <ChevronLeft size={20} />
-          </button>
-          <span className="text-xs font-black text-[#1e1b4b] uppercase tracking-widest">
-            {getMonthName(month)} {year}
-          </span>
-          <button onClick={handleNextMonth} className="p-3 hover:bg-slate-50 rounded-xl transition-colors text-slate-600">
-            <ChevronRight size={20} />
-          </button>
-        </div>
 
         <div className="relative">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -419,33 +430,6 @@ const Reports: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Actions */}
-                  <div className="grid grid-cols-2 gap-4 pt-4">
-                     <button 
-                        onClick={()=>shareOnWhatsApp(selectedCustomer, summary)}
-                        className="flex items-center justify-center gap-2.5 py-4 border border-emerald-200 rounded-xl text-emerald-700 font-bold text-xs uppercase tracking-widest hover:bg-emerald-50 transition-colors"
-                     >
-                        <MessageCircle size={18} fill="currentColor" />
-                        WhatsApp
-                     </button>
-                     <button 
-                        onClick={()=>generateIndividualPDF(selectedCustomer, summary.daily_entries, {
-                          periodLabel: `${getMonthName(month)} ${year}`,
-                          rate: settings.rate,
-                          dateRange: {
-                            start: `${year}-${String(month).padStart(2, '0')}-01`,
-                            end: `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`
-                          },
-                          businessName: settings.businessName,
-                          address: settings.address,
-                          paymentQr: settings.paymentQr
-                        })}
-                        className="flex items-center justify-center gap-2.5 py-4 border border-slate-200 rounded-xl text-slate-700 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-colors"
-                     >
-                        <FileText size={18} />
-                        Download
-                     </button>
-                  </div>
                 </div>
               ) : (
                 <div className="py-20 text-center">
@@ -457,6 +441,7 @@ const Reports: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 };
