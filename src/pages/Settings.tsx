@@ -18,7 +18,7 @@ import { useAppContext } from '../context/AppContext';
 import { saveSettings } from '../services/db';
 
 const Settings: React.FC = () => {
-  const { settings, setSettings } = useAppContext();
+  const { settings, setSettings, logout } = useAppContext();
   const [formData, setFormData] = useState({ ...settings, upiId: settings.upiId || '' });
   const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'system'>('profile');
   const [saving, setSaving] = useState(false);
@@ -49,12 +49,6 @@ const Settings: React.FC = () => {
     return () => clearTimeout(timer);
   }, [formData]);
 
-  const clearCache = () => {
-    if (window.confirm("This will clear local storage. Your data in Firebase is safe but you'll need to re-login/re-sync. Continue?")) {
-      localStorage.clear();
-      window.location.reload();
-    }
-  };
   return (
     <div className="min-h-screen bg-[#F1F4FF] font-sans pb-32 pt-[72px]">
       {/* Toast Notification */}
@@ -64,7 +58,7 @@ const Settings: React.FC = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-[300] bg-emerald-600 text-white px-6 py-3.5 rounded-xl shadow-2xl flex items-center gap-3 font-bold text-xs uppercase tracking-widest"
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-[3000] bg-emerald-600 text-white px-6 py-3.5 rounded-xl shadow-2xl flex items-center gap-3 font-bold text-xs uppercase tracking-widest"
           >
             <ShieldCheck size={18} strokeWidth={2.5} />
             Settings Updated Successfully
@@ -75,7 +69,7 @@ const Settings: React.FC = () => {
       {/* 1. Page Title - Fixed Header */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 max-w-lg w-full bg-[#F1F4FF]/80 backdrop-blur-md z-[100] px-6 py-4 flex items-center justify-between border-b border-indigo-100 shadow-sm">
          <h1 className="text-xl font-bold text-[#1e1b4b]">Settings</h1>
-         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {saving ? (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
                 <RefreshCw className="animate-spin" size={12} />
@@ -87,7 +81,16 @@ const Settings: React.FC = () => {
                 <span className="text-[9px] font-bold uppercase tracking-widest">Saved</span>
               </div>
             )}
-         </div>
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                if (window.confirm("Are you sure you want to logout?")) logout();
+              }}
+              className="w-10 h-10 bg-white text-slate-500 rounded-full flex items-center justify-center border border-indigo-100 shadow-sm transition-all active:bg-slate-50"
+            >
+              <User size={20} />
+            </motion.button>
+          </div>
       </div>
 
       <div className="px-6 py-8">
@@ -98,7 +101,6 @@ const Settings: React.FC = () => {
           {[
             { id: 'profile', label: 'Identity', icon: Building2 },
             { id: 'billing', label: 'Payment', icon: CreditCard },
-            { id: 'system', label: 'Core', icon: Database },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -133,6 +135,7 @@ const Settings: React.FC = () => {
                        <Building2 size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                        <input 
                         id="tour-business-name"
+                        maxLength={50}
                         type="text"
                         value={formData.businessName}
                         placeholder="e.g. PureMilk Dairy" 
@@ -147,7 +150,9 @@ const Settings: React.FC = () => {
                     <div className="relative">
                        <MapPin size={16} className="absolute left-4 top-4 text-slate-400" />
                        <textarea 
+                        id="tour-business-address"
                         rows={3}
+                        maxLength={100}
                         value={formData.address}
                         placeholder="Business address details..."
                         onChange={(e) => setFormData({...formData, address: e.target.value})}
@@ -174,61 +179,32 @@ const Settings: React.FC = () => {
             {activeTab === 'billing' && (
               <div className="space-y-6">
                 <section className="bg-white rounded-2xl p-6 border border-slate-900/10 space-y-6">
-                   <div className="space-y-4">
-                    <div className="flex items-center justify-between ml-1">
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Standard Milk Rate (₹/L)</label>
-                      {new Date().getDate() === 1 && (
-                        <span className="text-[10px] font-bold text-indigo-500 uppercase">
-                          {3 - (settings.dailyChangeCount || 0)} Changes Left
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative">
-                       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">₹</div>
-                       <input 
-                        id="tour-milk-rate"
-                        type="number"
-                        disabled={(settings.rate > 0 && settings.lastRateChangeMonth && new Date().getDate() !== 1) || (settings.lastRateChangeMonth === new Date().toISOString().slice(0, 7) && (settings.dailyChangeCount || 0) >= 3)}
-                        value={formData.rate}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          if (isNaN(val)) return;
-                          
-                          const today = new Date();
-                          const currentMonth = today.toISOString().slice(0, 7);
-                          const prevMonth = settings.lastRateChangeMonth || '';
-                          const prevCount = settings.dailyChangeCount || 0;
-                          
-                          let newCount = 1;
-                          if (prevMonth === currentMonth) {
-                            newCount = prevCount + 1;
-                          }
-
-                          setFormData({
-                            ...formData, 
-                            rate: val,
-                            lastRateChangeMonth: currentMonth,
-                            dailyChangeCount: newCount
-                          });
-                        }}
-                        className={`w-full pl-10 pr-4 py-4 rounded-xl text-2xl font-bold outline-none tabular-nums transition-all ${
-                          new Date().getDate() !== 1 
-                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200' 
-                            : 'bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:border-indigo-500'
-                        }`}
-                      />
-                      {settings.rate > 0 && settings.lastRateChangeMonth && new Date().getDate() !== 1 && (
-                        <p className="mt-2 text-[10px] text-amber-600 font-bold flex items-center gap-1">
-                          <Info size={12} /> Subsequent rate updates are only allowed on the 1st of the month (Max 3 times).
-                        </p>
-                      )}
-                      {(settings.rate === 0 || !settings.lastRateChangeMonth) && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Standard Milk Rate (₹/L)</label>
+                      </div>
+                      <div className="relative">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">₹</div>
+                        <input 
+                          id="tour-milk-rate"
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={formData.rate}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setFormData({
+                              ...formData, 
+                              rate: isNaN(val) ? 0 : val
+                            });
+                          }}
+                          className="w-full pl-10 pr-4 py-4 rounded-xl text-2xl font-bold outline-none tabular-nums transition-all bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:border-indigo-500"
+                        />
                         <p className="mt-2 text-[10px] text-indigo-600 font-bold flex items-center gap-1">
-                          <Info size={12} /> Set your initial rate now. You can change it later on the 1st of any month.
+                          <Info size={12} /> You can update your selling rate anytime. Changes apply to all new entries.
                         </p>
-                      )}
+                      </div>
                     </div>
-                  </div>
 
                   <div className="space-y-4 border-t border-slate-50 pt-6">
                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Digital Payment Setup</label>
@@ -279,45 +255,6 @@ const Settings: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'system' && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm">
-                   <button 
-                    onClick={clearCache}
-                    className="w-full flex items-center justify-between p-6 hover:bg-rose-50 transition-all group border-b border-slate-50"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center group-hover:bg-rose-500 group-hover:text-white transition-all shadow-sm">
-                        <RefreshCw size={20} strokeWidth={2.5} />
-                      </div>
-                      <div className="text-left">
-                        <h4 className="font-bold text-slate-800 text-sm">Purge Local Cache</h4>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Reset application state</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={18} className="text-slate-300" />
-                  </button>
-
-                  <div className="p-6 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-slate-100 text-slate-500 rounded-xl flex items-center justify-center">
-                        <Info size={20} strokeWidth={2.5} />
-                      </div>
-                      <div className="text-left">
-                        <h4 className="font-bold text-slate-800 text-sm">System Build</h4>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">MilkBook Enterprise v2.0</p>
-                      </div>
-                    </div>
-                    <span className="bg-slate-100 text-slate-600 text-[9px] font-bold px-3 py-1 rounded-full uppercase tracking-widest border border-slate-200">Stable</span>
-                  </div>
-                </div>
-
-                <div className="p-10 text-center opacity-40">
-                   <Milk className="mx-auto text-slate-400 mb-2" size={32} />
-                   <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-500">Service provided by Antigravity</p>
-                </div>
-              </div>
-            )}
           </motion.div>
         </AnimatePresence>
       </div>

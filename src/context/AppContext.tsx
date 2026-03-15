@@ -11,6 +11,7 @@ interface AppContextType {
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
   loading: boolean;
   refreshCustomers: () => Promise<void>;
+  logout: () => Promise<void>;
   showTour: boolean;
   setShowTour: (show: boolean) => void;
 }
@@ -30,6 +31,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCustomers(list);
   };
 
+  const logout = async () => {
+    try {
+      await auth.signOut();
+    } catch (err) {
+      console.error("Logout error", err);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
@@ -40,9 +49,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const c = await getCustomers();
           setCustomers(c);
           
-          // Check if it's a new user for tour
+          // Check if it's a new user OR mandatory details are missing
           const hasSeenTour = localStorage.getItem(`tour_seen_${u.uid}`);
-          if (!hasSeenTour) {
+          const isMissingDetails = !s.businessName || !s.address || !s.upiId || !s.rate || c.length < 2;
+          
+          if (!hasSeenTour || isMissingDetails) {
              setShowTour(true);
           }
         } catch (err) {
@@ -67,6 +78,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCustomers, 
       loading, 
       refreshCustomers,
+      logout,
       showTour,
       setShowTour
     }}>

@@ -22,48 +22,53 @@ const AppTour: React.FC = () => {
       spotlightClicks: true,
     },
     {
+      target: '#tour-business-address',
+      content: 'Step 2 (Mandatory): Enter your Office/Farm Address. This will appear on your customer receipts.',
+      spotlightClicks: true,
+    },
+    {
       target: '#tour-upi-id',
-      content: 'Step 2 (Mandatory): Add your UPI ID (e.g., yourname@okaxis). We will generate a QR code for your customers automatically!',
+      content: 'Step 3 (Mandatory): Add your UPI ID (e.g., yourname@okaxis). We will generate a QR code for your customers automatically!',
       spotlightClicks: true,
     },
     {
       target: '#tour-milk-rate',
-      content: 'Step 3 (Mandatory): Set your Milk Rate per Litre. This is your default selling price.',
+      content: 'Step 4 (Mandatory): Set your Milk Rate per Litre. This is your default selling price.',
       spotlightClicks: true,
     },
     {
       target: '#tour-add-customer',
-      content: 'Step 4 (Mandatory): Time to add your members! Please add at least 2 customers now to see how MilkBook manages your route.',
+      content: 'Step 5 (Mandatory): Time to add your members! Please enter their 10-digit Indian phone number and name. Add at least 2 customers now.',
       spotlightClicks: true,
     },
     {
       target: '#tour-session-toggle',
-      content: 'Step 5: On the Delivery page, you can toggle between Morning and Evening milk distribution.',
+      content: 'Step 6: On the Delivery page, you can toggle between Morning and Evening milk distribution.',
     },
     {
       target: '#tour-delivery-item',
-      content: 'Step 6: Simply adjust the liters for each member. Your data is synced to the cloud instantly!',
+      content: 'Step 7: Simply adjust the liters for each member. Your data is synced to the cloud instantly!',
     },
     {
       target: '#tour-report-summary',
-      content: 'Step 7: View your monthly collection summary and outstanding balances here.',
+      content: 'Step 8: View your monthly collection summary and outstanding balances here.',
     },
     {
       target: '#tour-report-item',
-      content: 'Step 8: Click on a customer to view their statement and record payments. Next, let\'s check out Digital Bills!',
+      content: 'Step 9: Click on a customer to view their statement and record payments. Next, let\'s check out Digital Bills!',
     },
     {
       target: 'body',
-      content: 'Step 9: In the Digital Bills section, you can manage all monthly member statements in one place.',
+      content: 'Step 10: In the Digital Bills section, you can manage all monthly member statements in one place.',
       placement: 'center',
     },
     {
       target: '#tour-whatsapp-btn',
-      content: 'Step 10: Instantly send a professional professional summary to your customer via WhatsApp!',
+      content: 'Step 11: Instantly send a professional summary to your customer via WhatsApp!',
     },
     {
       target: '#tour-download-btn',
-      content: 'Step 11: Or download a beautiful PDF report with your business name and QR code for printing. Your tour is now complete!',
+      content: 'Step 12: Or download a beautiful PDF report with your business name and QR code for printing. Your tour is now complete!',
     },
   ], []);
 
@@ -78,34 +83,39 @@ const AppTour: React.FC = () => {
           setStepIndex(1);
           return;
         }
-        if (index === 2 && !settings.upiId) {
-          alert('Please enter your UPI ID for QR payments.');
+        if (index === 2 && !settings.address) {
+          alert('Please enter your Business Address before proceeding.');
           setStepIndex(2);
           return;
         }
-        if (index === 3 && !settings.rate) {
-          alert('Please set your Milk Rate.');
+        if (index === 3 && !settings.upiId) {
+          alert('Please enter your UPI ID for QR payments.');
           setStepIndex(3);
           return;
         }
-        if (index === 4 && customers.length < 2) {
-          alert(`Please add at least 2 customers. You currently have ${customers.length}.`);
+        if (index === 4 && !settings.rate) {
+          alert('Please set your Milk Rate.');
           setStepIndex(4);
+          return;
+        }
+        if (index === 5 && customers.length < 2) {
+          alert(`Please add at least 2 customers. You currently have ${customers.length}.`);
+          setStepIndex(5);
           return;
         }
       }
 
       const nextIndex = index + (action === 'prev' ? -1 : 1);
       
-      if (nextIndex >= 1 && nextIndex <= 3) {
+      if (nextIndex >= 1 && nextIndex <= 4) {
         if (location.pathname !== '/settings') navigate('/settings');
-      } else if (nextIndex === 4) {
+      } else if (nextIndex === 5) {
         if (location.pathname !== '/customers') navigate('/customers');
-      } else if (nextIndex >= 5 && nextIndex <= 6) {
+      } else if (nextIndex >= 6 && nextIndex <= 7) {
         if (location.pathname !== '/') navigate('/');
-      } else if (nextIndex >= 7 && nextIndex <= 8) {
+      } else if (nextIndex >= 8 && nextIndex <= 9) {
         if (location.pathname !== '/reports') navigate('/reports');
-      } else if (nextIndex >= 9 && nextIndex <= 11) {
+      } else if (nextIndex >= 10 && nextIndex <= 12) {
         if (location.pathname !== '/bills') navigate('/bills');
       }
       
@@ -113,7 +123,7 @@ const AppTour: React.FC = () => {
     }
 
     if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any)) {
-      if (customers.length < 2 || !settings.upiId || !settings.businessName) {
+      if (customers.length < 2 || !settings.upiId || !settings.businessName || !settings.address) {
          alert("You must complete all required fields and add at least 2 customers before starting.");
          setShowTour(true);
          setStepIndex(1);

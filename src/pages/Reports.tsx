@@ -17,14 +17,17 @@ import {
   Milk,
   User,
   CheckCircle2,
-  Users
+  Users,
+  Download,
+  Printer
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { getMonthlySummary, updateMonthlySummary, recordPayment, MonthlySummary } from '../services/db';
 import { formatCurrency, getMonthName, getPrevMonth, getNextMonth, formatDate } from '../utils/calculations';
+import { generateIndividualPDF } from '../utils/reports';
 
 const Reports: React.FC = () => {
-  const { customers, settings, loading, refreshCustomers } = useAppContext();
+  const { customers, settings, loading, refreshCustomers, logout } = useAppContext();
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [search, setSearch] = useState('');
@@ -114,6 +117,28 @@ const Reports: React.FC = () => {
     refreshCustomers();
   };
 
+  const handleDownloadReport = async (customer: any, summ: MonthlySummary) => {
+    const monthlyBill = summ.current_bill || 0;
+    const monthlyPaid = summ.total_paid || 0;
+    const netBalance = customer.total_balance || 0;
+    const oldBalance = Math.max(0, netBalance - (monthlyBill - monthlyPaid));
+
+    await generateIndividualPDF(customer, summ.daily_entries, {
+       periodLabel: `${getMonthName(month)} ${year}`,
+       rate: settings.rate,
+       dateRange: {
+         start: `${year}-${String(month).padStart(2, '0')}-01`,
+         end: `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`
+       },
+       businessName: settings.businessName,
+       address: settings.address,
+       paymentQr: settings.paymentQr,
+       upiId: settings.upiId,
+       oldBalance,
+       totalBalance: netBalance
+    });
+  };
+
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => 
@@ -143,6 +168,15 @@ const Reports: React.FC = () => {
       {/* 1. Page Title - Fixed */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 max-w-lg w-full bg-[#F1F4FF]/80 backdrop-blur-md z-[100] px-6 py-4 border-b border-indigo-100 flex items-center justify-between">
         <h1 className="text-xl font-black text-slate-800 tracking-tight">Monthly Statement</h1>
+        <motion.button 
+          whileTap={{ scale: 0.9 }}
+          onClick={() => {
+            if (window.confirm("Are you sure you want to logout?")) logout();
+          }}
+          className="w-10 h-10 bg-white text-slate-500 rounded-full flex items-center justify-center border border-indigo-100 shadow-sm transition-all active:bg-slate-50"
+        >
+          <User size={20} />
+        </motion.button>
       </div>
 
       <div className="pt-6">
@@ -315,9 +349,18 @@ const Reports: React.FC = () => {
                     Account | {getMonthName(month)} {year}
                   </p>
                 </div>
-                <button onClick={() => setSelectedCustomer(null)} className="p-2 hover:bg-slate-200/50 rounded-full transition-colors text-slate-400">
-                  <X size={20} />
-                </button>
+                <div className="flex items-center gap-1">
+                  <motion.button 
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handleDownloadReport(selectedCustomer, summary!)}
+                    className="p-2 hover:bg-slate-200/50 rounded-full transition-colors text-indigo-600"
+                  >
+                    <Download size={20} />
+                  </motion.button>
+                  <button onClick={() => setSelectedCustomer(null)} className="p-2 hover:bg-slate-200/50 rounded-full transition-colors text-slate-400">
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
 
               {summary ? (

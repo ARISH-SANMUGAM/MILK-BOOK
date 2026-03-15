@@ -12,6 +12,30 @@ declare module 'jspdf' {
   }
 }
 
+/** Convert an image URL to base64 using a canvas element (avoids CORS issues). */
+const getBase64Image = (url: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 200;
+        canvas.height = img.naturalHeight || 200;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(''); return; }
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } catch {
+        resolve('');
+      }
+    };
+    img.onerror = () => resolve('');
+    // Add cache-bust to encourage CORS headers
+    img.src = url + (url.includes('?') ? '&' : '?') + '_cb=' + Date.now();
+  });
+};
+
 /** Download a monthly CSV for a single customer. */
 export function downloadCustomerCSV(customer: any, records: any[], month: number, year: number, rate: number) {
   const monthName = getMonthName(month);
@@ -32,11 +56,9 @@ export function downloadCustomerCSV(customer: any, records: any[], month: number
     const d = new Date(rec.date);
     const dayName = d.toLocaleDateString('en-IN', { weekday: 'short' });
 
-    // Morning
     if (rec.morning_qty > 0) {
       csv += `${rec.date},${dayName},Morning,${rec.morning_qty},${rec.rate_per_litre || rate},${(rec.morning_qty * (rec.rate_per_litre || rate)).toFixed(2)}\n`;
     }
-    // Evening
     if (rec.evening_qty > 0) {
       csv += `${rec.date},${dayName},Evening,${rec.evening_qty},${rec.rate_per_litre || rate},${(rec.evening_qty * (rec.rate_per_litre || rate)).toFixed(2)}\n`;
     }
@@ -74,140 +96,123 @@ export function downloadAllCSV(allData: any[], month: number, year: number) {
   triggerDownload(csv, filename);
 }
 
-/** Generate a PDF for a single customer — supports Monthly or Weekly. */
-export async function generateIndividualPDF(customer: any, records: any[], options: any = {}) {
-  const doc = new jsPDF('p', 'mm', 'a4');
-  const { periodLabel, rate, dateRange, businessName, paymentQr, address } = options;
-  const emeraldBrand: [number, number, number] = [16, 185, 129]; // #10B981
-  const deepBrand: [number, number, number] = [6, 78, 59]; // #064E3B
+// ─────────────────────────────────────────────────────────────
+// Shared PDF drawing helpers
+// ─────────────────────────────────────────────────────────────
 
-  // 1. HEADER SECTION
-  doc.setDrawColor(...emeraldBrand);
-  doc.setLineWidth(0.8);
-  doc.line(14, 28, 196, 28);
+const EMERALD: [number, number, number] = [16, 185, 129];
+const DEEP:    [number, number, number] = [6, 78, 59];
+const pdfCurrency = (val: any) =>
+  (parseFloat(val) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  doc.setTextColor(...deepBrand);
+/** Build left/right table data arrays from daily records, split by month mid-point. */
+function buildTableData(records: any[], month: number, year: number, rate: number) {
+  const leftData: string[][] = [];
+  const rightData: string[][] = [];
+  let totalLitres = 0;
+
+  // new Date(year, month, 0) with 1-based month gives last day of that month ✓
+  const lastDay = new Date(year, month, 0).getDate();
+  const mid = Math.ceil(lastDay / 2);
+
+  for (let d = 1; d <= lastDay; d++) {
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const rec = records.find(r => r.date === dateStr);
+    const monthShort = getMonthName(month).slice(0, 3);
+    const rowDate = `${String(d).padStart(2, '0')} ${monthShort}`;
+
+    let row: string[] = [rowDate, '', '', '', ''];
+    if (rec && !rec.no_delivery) {
+      const qM = parseFloat(rec.morning_qty) || 0;
+      const qE = parseFloat(rec.evening_qty) || 0;
+      const qty = qM + qE;
+      if (qty > 0) {
+        row = [
+          rowDate,
+          qM > 0 ? `${qM}L` : '—',
+          qE > 0 ? `${qE}L` : '—',
+          `${qty}L`,
+          `Rs. ${pdfCurrency(qty * rate)}`
+        ];
+        totalLitres += qty;
+      }
+    }
+
+    if (d <= mid) leftData.push(row);
+    else rightData.push(row);
+  }
+
+  while (rightData.length < leftData.length) rightData.push(['', '', '', '', '']);
+
+  return { leftData, rightData, totalLitres };
+}
+
+/** Draw the invoice header (logo area + invoice ID). */
+function drawInvoiceHeader(doc: jsPDF, businessName: string, month: number, year: number, customerId: string) {
+  doc.setFillColor(249, 250, 251);
+  doc.rect(0, 0, 210, 35, 'F');
+
+  doc.setDrawColor(...EMERALD);
+  doc.setLineWidth(1.5);
+  doc.line(0, 35, 210, 35);
+
+  doc.setTextColor(...DEEP);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(22);
-  doc.text(businessName || 'MilkBook', 14, 20);
+  doc.setFontSize(26);
+  doc.text(businessName || 'MilkBook', 14, 18);
 
   doc.setTextColor(107, 114, 128);
-  doc.setFontSize(9);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('Dairy Delivery & Billing Statement', 14, 25);
+  doc.text('Dairy Delivery & Billing Statement', 14, 26);
 
+  const invoiceId = `Invoice #${year}${String(month).padStart(2, '0')}-${(customerId || '').slice(-4) || '0000'}`;
   doc.setTextColor(156, 163, 175);
   doc.setFontSize(10);
-  const invoiceId = `Invoice #${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}-${customer.id?.slice(-4) || '0000'}`;
-  doc.text(invoiceId, 196, 20, { align: 'right' });
+  doc.text(invoiceId, 196, 18, { align: 'right' });
+}
 
-  const pdfCurrency = (val: any) => 'Rs. ' + (parseFloat(val) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Draw billing meta section (BILL TO + BILLING INFO grid). */
+function drawBillingMeta(doc: jsPDF, customer: any, periodLabel: string, rate: number) {
+  const metaY = 42;
 
-  // 2. COMPACT 2-COLUMN CUSTOMER GRID
-  const metaY = 38;
-  doc.setTextColor(156, 163, 175);
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'bold');
+  // Left: Bill To
+  doc.setTextColor(156, 163, 175); doc.setFontSize(7); doc.setFont('helvetica', 'bold');
   doc.text('BILL TO', 14, metaY);
+  doc.setTextColor(17, 24, 39); doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+  doc.text((customer.name || '').toUpperCase(), 14, metaY + 6);
+  doc.setTextColor(107, 114, 128); doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.text(`+91 ${customer.phone || '—'}`, 14, metaY + 12);
 
-  doc.setTextColor(17, 24, 39);
-  doc.setFontSize(11);
-  doc.text(customer.name.toUpperCase(), 14, metaY + 5);
-
-  doc.setTextColor(107, 114, 128);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`+91 ${customer.phone || '—'}`, 14, metaY + 10);
-
-  const addr = customer.address || '—';
-  const splitAddr = doc.splitTextToSize(addr, 85);
-  doc.setFontSize(8);
-  doc.text(splitAddr, 14, metaY + 14);
-
-  const col2X = 115;
+  // Right: Billing Info
+  const col2X = 135;
   const colValueX = 196;
-  doc.setTextColor(156, 163, 175);
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(156, 163, 175); doc.setFontSize(7); doc.setFont('helvetica', 'bold');
   doc.text('BILLING INFO', col2X, metaY);
 
   const gridData = [
     ['PERIOD:', periodLabel.toUpperCase()],
     ['INV DATE:', new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })],
-    ['RATE:', `${pdfCurrency(rate)} / L`]
+    ['RATE:', `Rs. ${pdfCurrency(rate)} / L`]
   ];
 
-  let rowY = metaY + 5;
-  gridData.forEach(row => {
-    doc.setTextColor(156, 163, 175);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.text(row[0], col2X, rowY);
-
-    doc.setTextColor(17, 24, 39);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text(row[1], colValueX, rowY, { align: 'right' });
-    rowY += 5;
+  let rowY = metaY + 6;
+  gridData.forEach(([label, value]) => {
+    doc.setTextColor(156, 163, 175); doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    doc.text(label, col2X, rowY);
+    doc.setTextColor(17, 24, 39); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+    doc.text(value, colValueX, rowY, { align: 'right' });
+    rowY += 6;
   });
+}
 
-  const leftData: any[] = [];
-  const rightData: any[] = [];
-  let totalLitres = 0;
-
-  if (dateRange && dateRange.start && dateRange.end) {
-    const start = new Date(dateRange.start);
-    const end = new Date(dateRange.end);
-    const allDays = [];
-    let curr = new Date(start);
-    while (curr <= end) {
-      allDays.push(new Date(curr));
-      curr.setDate(curr.getDate() + 1);
-    }
-
-    const mid = Math.ceil(allDays.length / 2);
-
-    allDays.forEach((date, index) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-
-      const rec = records.find(r => r.date === dateStr);
-      const rowDate = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-
-      let row = [rowDate, '', '', '', ''];
-      if (rec && !rec.no_delivery) {
-        const m = parseFloat(rec.morning_qty) || 0;
-        const e = parseFloat(rec.evening_qty) || 0;
-        const qty = m + e;
-        const rowAmt = qty * rate;
-        row = [rowDate, m > 0 ? `${m}L` : '—', e > 0 ? `${e}L` : '—', qty > 0 ? `${qty.toLocaleString('en-IN', { maximumFractionDigits: 3 })}L` : '—', pdfCurrency(rowAmt)];
-        totalLitres += qty;
-      }
-
-      if (index < mid) leftData.push(row);
-      else rightData.push(row);
-    });
-
-    while (rightData.length < leftData.length) {
-      rightData.push(['', '', '', '', '']);
-    }
-  }
-
-  const tableY = 68;
+/** Draw the two-column daily entries table. */
+function drawDailyTables(doc: jsPDF, leftData: string[][], rightData: string[][]) {
+  const tableY = 75;
   const tableWidth = 91;
-  const commonStyles = {
-    fontSize: 8.5,
-    cellPadding: 1.5,
-    lineWidth: 0,
-    textColor: [55, 65, 81]
-  };
-  const commonHeadStyles = {
-    fillColor: null,
-    textColor: emeraldBrand,
-    fontStyle: 'bold'
-  };
+
+  const commonStyles = { fontSize: 9, cellPadding: 2, lineWidth: 0, textColor: [55, 65, 81] };
+  const commonHeadStyles = { fillColor: null, textColor: EMERALD, fontStyle: 'bold' };
   const commonColumnStyles = {
     0: { cellWidth: 20 },
     1: { halign: 'center', cellWidth: 15 },
@@ -216,115 +221,184 @@ export async function generateIndividualPDF(customer: any, records: any[], optio
     4: { halign: 'right', fontStyle: 'bold', cellWidth: 23 }
   };
 
-  const drawBorders = (data: any) => {
-    const { doc } = data;
-    const { x, y, width, height } = data.cell;
+  const drawHeaders = (data: any) => {
     if (data.section === 'head') {
-      doc.setDrawColor(...emeraldBrand);
-      doc.setLineWidth(0.4);
-      doc.line(x, y + height, x + width, y + height);
-    } else if (data.section === 'body' && data.cell.raw !== '') {
-      doc.setDrawColor(243, 244, 246);
-      doc.setLineWidth(0.1);
-      doc.line(x, y + height, x + width, y + height);
+      const { doc: d, cell } = data;
+      d.setDrawColor(...EMERALD); d.setLineWidth(0.5);
+      d.line(cell.x, cell.y, cell.x + cell.width, cell.y);
+      d.line(cell.x, cell.y + cell.height, cell.x + cell.width, cell.y + cell.height);
     }
   };
 
   doc.autoTable({
-    startY: tableY,
-    margin: { left: 14 },
-    tableWidth: tableWidth,
+    startY: tableY, margin: { left: 14 }, tableWidth,
     head: [['Date', 'M', 'E', 'Qty', 'Amt']],
-    body: leftData,
-    theme: 'plain',
-    styles: commonStyles,
-    headStyles: commonHeadStyles,
-    columnStyles: commonColumnStyles,
-    didDrawCell: drawBorders
+    body: leftData, theme: 'plain', styles: commonStyles,
+    headStyles: commonHeadStyles, columnStyles: commonColumnStyles,
+    didDrawCell: drawHeaders
   });
 
   const leftFinalY = doc.lastAutoTable.finalY;
 
   doc.autoTable({
-    startY: tableY,
-    margin: { left: 14 + tableWidth + 4 },
-    tableWidth: tableWidth,
+    startY: tableY, margin: { left: 14 + tableWidth + 4 }, tableWidth,
     head: [['Date', 'M', 'E', 'Qty', 'Amt']],
-    body: rightData,
-    theme: 'plain',
-    styles: commonStyles,
-    headStyles: commonHeadStyles,
-    columnStyles: commonColumnStyles,
-    didDrawCell: drawBorders
+    body: rightData, theme: 'plain', styles: commonStyles,
+    headStyles: commonHeadStyles, columnStyles: commonColumnStyles,
+    didDrawCell: drawHeaders
   });
 
-  const finalTableY = Math.max(leftFinalY, doc.lastAutoTable.finalY);
+  return Math.max(leftFinalY, doc.lastAutoTable.finalY);
+}
 
-  const summaryY = finalTableY + 5;
-  doc.setDrawColor(...emeraldBrand);
-  doc.setLineWidth(0.6);
+/** Draw the summary / totals section after the tables. */
+function drawSummary(doc: jsPDF, summaryY: number, totalLitres: number, rate: number, oldBalance: number, grandTotal: number) {
+  doc.setDrawColor(...EMERALD); doc.setLineWidth(0.8);
   doc.line(14, summaryY, 196, summaryY);
 
-  doc.setTextColor(107, 114, 128);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Bill Calculation: ${totalLitres.toLocaleString('en-IN', { maximumFractionDigits: 3 })} L x Rs. ${parseFloat(rate).toFixed(2)}`, 14, summaryY + 8);
+  doc.setTextColor(107, 114, 128); doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+  doc.text(`Bill Calculation: ${totalLitres.toFixed(1)} L x Rs. ${pdfCurrency(rate)}`, 14, summaryY + 8);
 
-  const currentTotal = totalLitres * rate;
+  if (oldBalance > 0) {
+    doc.text(`(Plus Old Balance: Rs. ${pdfCurrency(oldBalance)})`, 14, summaryY + 14);
+  }
 
-  doc.setTextColor(...deepBrand);
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`GRAND TOTAL: Rs. ${currentTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, summaryY + 8, { align: 'right' });
+  doc.setTextColor(...DEEP); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+  doc.text(`GRAND TOTAL: Rs. ${pdfCurrency(grandTotal)}`, 196, summaryY + 9, { align: 'right' });
+}
 
-  let footerY = summaryY + 18;
-  if (footerY > 235) footerY = 230;
-
-  doc.setTextColor(...deepBrand);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
+/** Draw the footer (thank you + address + QR). Returns the QR source URL if applicable. */
+async function drawFooter(
+  doc: jsPDF,
+  footerY: number,
+  address: string | undefined,
+  businessName: string,
+  paymentQr: string | undefined,
+  upiId: string | undefined,
+  grandTotal: number
+) {
+  doc.setTextColor(...DEEP); doc.setFontSize(14); doc.setFont('helvetica', 'bold');
   doc.text('Thank you for your business!', 14, footerY + 5);
 
-  let currentLineY = footerY + 12;
+  doc.setTextColor(107, 114, 128); doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+  doc.text('Business Details & Contact:', 14, footerY + 13);
+
   if (address) {
-    doc.setTextColor(107, 114, 128);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Business Details & Contact:', 14, currentLineY);
-    doc.setFont('helvetica', 'normal');
-    const splitContact = doc.splitTextToSize(address, 100);
-    doc.text(splitContact, 14, currentLineY + 5);
-    currentLineY += (splitContact.length * 4.5) + 6;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    doc.text(doc.splitTextToSize(address, 100), 14, footerY + 18);
   }
 
-  doc.setTextColor(107, 114, 128);
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Generated by MilkBook. We appreciate your support.`, 14, currentLineY + 5);
+  doc.setTextColor(156, 163, 175); doc.setFontSize(8);
+  doc.text('Generated by MilkBook. We appreciate your support.', 14, 286);
 
-  if (paymentQr) {
-    const qrSize = 46;
-    const qrX = 196 - qrSize;
-    const qrY = footerY;
-    doc.setTextColor(156, 163, 175);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.text('SCAN TO PAY', qrX + (qrSize / 2), qrY - 2, { align: 'center' });
+  // QR code
+  const qrSize = 50;
+  const qrX = 196 - qrSize;
+  const qrY = footerY + 2;
+
+  let qrSrc = paymentQr || '';
+  if (upiId && grandTotal > 0) {
+    const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName || 'MilkBook')}&am=${grandTotal.toFixed(2)}&cu=INR&tn=Milk%20Bill`;
+    qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiUrl)}`;
+  }
+
+  if (qrSrc) {
+    doc.setTextColor(156, 163, 175); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.text('SCAN TO PAY', qrX + qrSize / 2, qrY - 2, { align: 'center' });
     try {
-      doc.addImage(paymentQr, 'PNG', qrX, qrY, qrSize, qrSize);
-    } catch (e) { console.error(e); }
+      const b64 = qrSrc.startsWith('http') ? await getBase64Image(qrSrc) : qrSrc;
+      if (b64) doc.addImage(b64, 'PNG', qrX, qrY, qrSize, qrSize);
+    } catch { /* skip QR, don't crash */ }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Public API
+// ─────────────────────────────────────────────────────────────
+
+/** Generate a PDF for a single customer's monthly bill. */
+export async function generateIndividualPDF(customer: any, records: any[], options: any = {}) {
+  const {
+    periodLabel = '',
+    rate = 0,
+    businessName = 'MilkBook',
+    paymentQr,
+    upiId,
+    address,
+    oldBalance = 0,
+    totalBalance,
+    month,
+    year
+  } = options;
+
+  // Derive month/year from dateRange if not provided directly
+  let resolvedMonth: number = month;
+  let resolvedYear: number = year;
+  if ((!resolvedMonth || !resolvedYear) && options.dateRange?.start) {
+    const parts = options.dateRange.start.split('-');
+    resolvedYear = parseInt(parts[0]);
+    resolvedMonth = parseInt(parts[1]);
+  }
+  if (!resolvedMonth) resolvedMonth = new Date().getMonth() + 1;
+  if (!resolvedYear) resolvedYear = new Date().getFullYear();
+
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  drawInvoiceHeader(doc, businessName, resolvedMonth, resolvedYear, customer.id);
+  drawBillingMeta(doc, customer, periodLabel, rate);
+
+  const { leftData, rightData, totalLitres } = buildTableData(records, resolvedMonth, resolvedYear, rate);
+  const finalTableY = drawDailyTables(doc, leftData, rightData);
+
+  const summaryY = finalTableY + 8;
+  const currentTotal = totalLitres * rate;
+  const grandTotal = totalBalance != null ? totalBalance : currentTotal;
+  drawSummary(doc, summaryY, totalLitres, rate, oldBalance, grandTotal);
+
+  let footerY = summaryY + 22;
+  if (footerY > 240) { doc.addPage(); footerY = 20; }
+
+  await drawFooter(doc, footerY, address, businessName, paymentQr, upiId, grandTotal);
+
+  doc.save(`${(customer.name || 'Customer').replace(/\s+/g, '_')}_Bill_${periodLabel.replace(/\s+/g, '_')}.pdf`);
+}
+
+/** Generate a single PDF containing one invoice per page for all customers. */
+export async function generateBulkInvoicesPDF(customersWithSummaries: any[], options: any) {
+  const { periodLabel, rate, businessName, paymentQr, upiId, address, month, year } = options;
+
+  if (customersWithSummaries.length === 0) return;
+
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  for (let i = 0; i < customersWithSummaries.length; i++) {
+    const { customer, summary } = customersWithSummaries[i];
+
+    const monthlyBill  = summary.current_bill   || 0;
+    const monthlyPaid  = summary.total_paid     || 0;
+    const netBalance   = customer.total_balance || 0;
+    const oldBalance   = Math.max(0, netBalance - (monthlyBill - monthlyPaid));
+
+    // Draw on an existing page (first iteration) or add a new page
+    if (i > 0) doc.addPage();
+
+    drawInvoiceHeader(doc, businessName, month, year, customer.id);
+    drawBillingMeta(doc, customer, periodLabel, rate);
+
+    const entries = summary.daily_entries || [];
+    const { leftData, rightData, totalLitres } = buildTableData(entries, month, year, rate);
+    const finalTableY = drawDailyTables(doc, leftData, rightData);
+
+    const summaryY = finalTableY + 8;
+    drawSummary(doc, summaryY, totalLitres, rate, oldBalance, netBalance);
+
+    let footerY = summaryY + 22;
+    if (footerY > 240) { footerY = 240; } // clamp within page for bulk
+
+    await drawFooter(doc, footerY, address, businessName, paymentQr, upiId, netBalance);
   }
 
-  if (options.output === 'blob') {
-    return doc.output('blob');
-  }
-  if (options.output === 'file') {
-    const blob = doc.output('blob');
-    const filename = `${customer.name.replace(/\s+/g, '_')}_Invoice.pdf`;
-    return new File([blob], filename, { type: 'application/pdf' });
-  }
-
-  doc.save(`${customer.name.replace(/\s+/g, '_')}_Invoice.pdf`);
+  doc.save(`MilkBook_All_Bills_${periodLabel.replace(/\s+/g, '_')}.pdf`);
 }
 
 /** Generate Overall Monthly Summary PDF. */
@@ -346,9 +420,9 @@ export async function generateSummaryPDF(data: any[], monthLabel: string) {
 
   let totalLitres = 0, totalRevenue = 0, totalPaid = 0;
   data.forEach(item => {
-    totalLitres += item.totals.totalLitres;
+    totalLitres  += item.totals.totalLitres;
     totalRevenue += item.totals.totalAmount;
-    totalPaid += (item.totalPaid || 0);
+    totalPaid    += (item.totalPaid || 0);
   });
 
   const performanceData = [
@@ -357,14 +431,8 @@ export async function generateSummaryPDF(data: any[], monthLabel: string) {
   ];
 
   doc.autoTable({
-    startY: 55,
-    body: performanceData,
-    theme: 'grid',
-    styles: {
-      fontSize: 10,
-      cellPadding: 6,
-      textColor: [17, 24, 39]
-    },
+    startY: 55, body: performanceData, theme: 'grid',
+    styles: { fontSize: 10, cellPadding: 6, textColor: [17, 24, 39] },
     columnStyles: {
       0: { fillColor: [249, 250, 251], fontStyle: 'bold', cellWidth: 40 },
       1: { fontStyle: 'bold', textColor: [37, 99, 235], cellWidth: 55 },
@@ -381,31 +449,22 @@ export async function generateSummaryPDF(data: any[], monthLabel: string) {
     formatCurrency(item.accountBalance)
   ]);
 
-  doc.setTextColor(17, 24, 39);
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(17, 24, 39); doc.setFontSize(14); doc.setFont('helvetica', 'bold');
   doc.text('Customer Performance Summary', 14, doc.lastAutoTable.finalY + 15);
 
   doc.autoTable({
     startY: doc.lastAutoTable.finalY + 20,
     head: [['CUSTOMER', 'TOTAL QTY', 'BILL AMOUNT', 'PAID', 'ACCT BALANCE']],
-    body: breakdown,
-    theme: 'striped',
-    headStyles: {
-      fillColor: [17, 24, 39],
-      fontSize: 9,
-      cellPadding: 4
-    },
-    columnStyles: {
-      2: { halign: 'right' },
-      3: { halign: 'right' },
-      4: { halign: 'right', fontStyle: 'bold' }
-    },
+    body: breakdown, theme: 'striped',
+    headStyles: { fillColor: [17, 24, 39], fontSize: 9, cellPadding: 4 },
+    columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right', fontStyle: 'bold' } },
     bodyStyles: { fontSize: 9, cellPadding: 3 }
   });
 
   doc.save(`MilkBook_Full_Summary_${monthLabel.replace(/\s+/g, '_')}.pdf`);
 }
+
+// ─────────────────────────────────────────────────────────────
 
 function triggerDownload(content: string, filename: string) {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });

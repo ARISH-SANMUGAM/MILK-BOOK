@@ -14,14 +14,15 @@ import {
   Milk,
   User,
   Check,
-  ChevronRight
+  ChevronRight,
+  LogOut,
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { saveCustomer, deleteCustomer, Customer } from '../services/db';
 import { formatCurrency } from '../utils/calculations';
 
 const Customers: React.FC = () => {
-  const { customers, refreshCustomers, loading } = useAppContext();
+  const { customers, refreshCustomers, loading, logout } = useAppContext();
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -57,16 +58,29 @@ const Customers: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Prevent same name or number
+    // Phone validation (Indian standard: 10 digits)
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneRegex.test(formData.phone)) {
+      alert("Please enter a valid 10-digit Indian phone number.");
+      return;
+    }
+
+    // Name validation
+    if (formData.name.trim().length > 50) {
+      alert("Name should be under 50 characters.");
+      return;
+    }
+
+    // Duplicate checks
     const isDuplicateName = customers.find(c => c.id !== editingCustomer?.id && c.name.toLowerCase() === formData.name.toLowerCase());
     const isDuplicatePhone = customers.find(c => c.id !== editingCustomer?.id && c.phone === formData.phone);
 
     if (isDuplicateName) {
-      alert("A customer with this name already exists.");
+      alert("A member with this name already exists.");
       return;
     }
     if (isDuplicatePhone) {
-      alert("A customer with this phone number already exists.");
+      alert("A member with this phone number already exists.");
       return;
     }
 
@@ -96,29 +110,39 @@ const Customers: React.FC = () => {
           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">{customers.length} Members</p>
         </div>
         <motion.button 
-          id="tour-add-customer"
-          whileTap={{ scale: 0.95 }}
-          onClick={() => handleOpenModal()}
-          className="bg-gradient-to-r from-[#1e1b4b] to-[#2e2a75] text-white p-2.5 rounded-xl shadow-lg flex items-center gap-2"
+          whileTap={{ scale: 0.9 }}
+          onClick={() => {
+            if (window.confirm("Are you sure you want to logout?")) logout();
+          }}
+          className="w-10 h-10 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center border border-slate-200 shadow-sm"
         >
-          <Plus size={18} strokeWidth={3} />
-          <span className="text-[9px] font-bold uppercase tracking-wider pr-1">Add New</span>
+          <User size={20} />
         </motion.button>
       </div>
 
       <div className="px-6 py-4">
 
 
-        {/* Search Field */}
-        <div className="relative mb-8">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Search by name or phone number..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-900/30 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all"
-          />
+        {/* Search & Add Area */}
+        <div className="flex gap-2 mb-8">
+          <div className="relative flex-1">
+            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Search by name or phone..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-900/30 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all shadow-sm"
+            />
+          </div>
+          <motion.button 
+            id="tour-add-customer"
+            whileTap={{ scale: 0.95 }}
+            onClick={() => handleOpenModal()}
+            className="aspect-square bg-[#1e1b4b] text-white p-3 rounded-xl shadow-lg flex items-center justify-center"
+          >
+            <Plus size={24} strokeWidth={3} />
+          </motion.button>
         </div>
 
         {/* Customer Directory */}
@@ -151,7 +175,7 @@ const Customers: React.FC = () => {
 
                 <div className="flex items-center gap-1">
                   <div className="text-right mr-3 hidden sm:block">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Balance</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Pending to Pay</p>
                     <p className={`text-sm font-bold ${c.total_balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                       {formatCurrency(c.total_balance)}
                     </p>
@@ -187,7 +211,7 @@ const Customers: React.FC = () => {
       {/* Customer Form Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4">
+          <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -196,6 +220,7 @@ const Customers: React.FC = () => {
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
             <motion.div 
+              id="tour-customer-modal"
               initial={{ y: 50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 50, opacity: 0 }}
@@ -217,6 +242,7 @@ const Customers: React.FC = () => {
                       <input 
                         required
                         type="text" 
+                        maxLength={50}
                         value={formData.name}
                         onChange={(e) => setFormData({...formData, name: e.target.value})}
                         className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white focus:border-[#1e1b4b] outline-none transition-all font-semibold text-slate-700"
@@ -225,23 +251,28 @@ const Customers: React.FC = () => {
                    </div>
                        <div className="space-y-1.5 col-span-2">
                         <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Contact Number</label>
-                        <input 
+                         <input 
                           required
                           type="tel" 
+                          maxLength={10}
                           value={formData.phone}
-                          onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            if (val.length <= 10) setFormData({...formData, phone: val});
+                          }}
                           className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white focus:border-[#1e1b4b] outline-none transition-all font-semibold text-slate-700"
-                          placeholder="Phone number"
+                          placeholder="Phone number (10 digits)"
                         />
                       </div>
                    <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Delivery Address</label>
-                      <textarea 
+                       <textarea 
                         required
+                        maxLength={200}
                         value={formData.address}
                         onChange={(e) => setFormData({...formData, address: e.target.value})}
                         className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-semibold text-slate-700 h-24 resize-none"
-                        placeholder="Street address..."
+                        placeholder="Street address (max 200 chars)..."
                       />
                    </div>
                    {/* Balance adjustment removed */}

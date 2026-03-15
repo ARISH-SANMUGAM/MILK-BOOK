@@ -30,7 +30,7 @@ import { formatDate, calcDailyAmount } from '../utils/calculations';
 interface SessionEntry { qty: number; collected: boolean; noDelivery: boolean }
 
 const Delivery: React.FC = () => {
-  const { customers, settings, loading, refreshCustomers } = useAppContext();
+  const { customers, settings, loading, refreshCustomers, logout } = useAppContext();
   const [date, setDate] = useState(formatDate(new Date(), 'iso'));
   const [activeSession, setActiveSession] = useState<'morning' | 'evening'>('morning');
   const [sessionData, setSessionData] = useState<Record<string, { morning: SessionEntry, evening: SessionEntry }>>({});
@@ -174,16 +174,27 @@ const Delivery: React.FC = () => {
           <h1 className="text-xl font-black text-slate-800 tracking-tight">Daily Delivery</h1>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{activeSession} Session</p>
         </div>
-        {!isToday && (
+        <div className="flex items-center gap-3">
+          {!isToday && (
+            <motion.button 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={() => setDate(formatDate(new Date(), 'iso'))}
+              className="bg-white border-2 border-[#1e1b4b] text-[#1e1b4b] px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm active:scale-95 transition-all"
+            >
+              Today
+            </motion.button>
+          )}
           <motion.button 
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            onClick={() => setDate(formatDate(new Date(), 'iso'))}
-            className="bg-white border-2 border-[#1e1b4b] text-[#1e1b4b] px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm active:scale-95 transition-all"
+            whileTap={{ scale: 0.9 }}
+            onClick={() => {
+              if (window.confirm("Are you sure you want to logout?")) logout();
+            }}
+            className="w-10 h-10 bg-white text-slate-500 rounded-full flex items-center justify-center border border-indigo-100 shadow-sm transition-all active:bg-slate-50"
           >
-            Today
+            <User size={20} />
           </motion.button>
-        )}
+        </div>
       </div>
 
 
