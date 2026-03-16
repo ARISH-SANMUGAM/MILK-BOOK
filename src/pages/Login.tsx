@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Mail, 
@@ -12,6 +12,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { auth, db } from '../services/firebase';
+import { withRateLimit, loginLimiter, globalLimiter, isRateLimitError } from '../services/rateLimiter';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -26,7 +27,8 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+  const [retryCountdown, setRetryCountdown] = useState(0);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -34,14 +36,29 @@ const Login: React.FC = () => {
     businessName: ''
   });
 
+  // Countdown timer for rate-limit retry display
+  useEffect(() => {
+    if (retryCountdown <= 0) return;
+    const t = setInterval(() => {
+      setRetryCountdown(prev => {
+        if (prev <= 1) { clearInterval(t); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [retryCountdown]);
+
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError('');
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
+      const result = await withRateLimit(
+        async () => signInWithPopup(auth, provider),
+        [globalLimiter, loginLimiter],
+      );
       const user = result.user;
-      
+
       // Initialize settings if user is new
       const settingsDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'config'));
       if (!settingsDoc.exists()) {
@@ -53,7 +70,13 @@ const Login: React.FC = () => {
         });
       }
     } catch (err: any) {
-      setError(err.message);
+      if (isRateLimitError(err)) {
+        const secs = Math.ceil(err.rateLimitResult.retryAfterMs / 1000);
+        setRetryCountdown(secs);
+        setError('Too many requests, please try again later.');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -66,11 +89,17 @@ const Login: React.FC = () => {
 
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, formData.email, formData.password);
+        await withRateLimit(
+          () => signInWithEmailAndPassword(auth, formData.email, formData.password),
+          [globalLimiter, loginLimiter],
+        );
       } else {
-        const result = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+        const result = await withRateLimit(
+          () => createUserWithEmailAndPassword(auth, formData.email, formData.password),
+          [globalLimiter, loginLimiter],
+        );
         await updateProfile(result.user, { displayName: formData.name });
-        
+
         // Initialize user settings
         await setDoc(doc(db, 'users', result.user.uid, 'settings', 'config'), {
           businessName: formData.businessName || 'My Dairy',
@@ -80,7 +109,13 @@ const Login: React.FC = () => {
         });
       }
     } catch (err: any) {
-      setError(err.message);
+      if (isRateLimitError(err)) {
+        const secs = Math.ceil(err.rateLimitResult.retryAfterMs / 1000);
+        setRetryCountdown(secs);
+        setError('Too many requests, please try again later.');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -197,15 +232,26 @@ const Login: React.FC = () => {
             </div>
 
             {error && (
-              <p className="text-rose-500 text-[10px] font-bold uppercase tracking-wider text-center">{error}</p>
+              <div className="text-center">
+                <p className="text-rose-500 text-[10px] font-bold uppercase tracking-wider">{error}</p>
+                {retryCountdown > 0 && (
+                  <p className="text-orange-500 text-[10px] font-bold mt-1">
+                    Retry available in {retryCountdown}s
+                  </p>
+                )}
+              </div>
             )}
 
-            <button 
+            <button
               type="submit"
-              disabled={loading}
+              disabled={loading || retryCountdown > 0}
               className="w-full bg-[#1e1b4b] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl shadow-indigo-900/20 flex items-center justify-center gap-2 hover:opacity-90 transition-all disabled:opacity-50"
             >
-              {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
+              {loading
+                ? 'Processing...'
+                : retryCountdown > 0
+                  ? `Retry in ${retryCountdown}s`
+                  : (isLogin ? 'Sign In' : 'Create Account')}
               <ArrowRight size={16} strokeWidth={3} />
             </button>
           </form>

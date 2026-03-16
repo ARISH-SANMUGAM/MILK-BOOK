@@ -2,6 +2,7 @@ import { db, auth } from './firebase';
 import { 
   collection, doc, getDocs, getDoc, setDoc, addDoc, deleteDoc, query, where, orderBy, increment, writeBatch, count
 } from 'firebase/firestore';
+import { withRateLimit, globalLimiter, bookingLimiter, paymentLimiter } from './rateLimiter';
 
 // ─── Types ────────────────────────────────────────────────
 export interface Settings {
@@ -227,15 +228,18 @@ export async function deleteCustomer(id: string): Promise<void> {
 
 // ─── Daily Records ────────────────────────────────────────
 export async function saveDailyRecord(customerId: string, date: string, data: Partial<DailyRecord>): Promise<void> {
-  // Fallback for single record updates (though we prefer batch for Daily Entry)
-  return saveBatchDailyRecords(date, [{ customerId, data }]);
+  // Rate-limited wrapper — enforces booking + global limits before any Firestore write.
+  return withRateLimit(
+    () => saveBatchDailyRecords(date, [{ customerId, data }]),
+    [globalLimiter, bookingLimiter],
+  );
 }
 
 /**
  * Save multiple daily records in an atomic batch.
  * This is more reliable and efficient for the Daily Entry page.
  */
- export async function saveBatchDailyRecords(date: string, updates: { customerId: string, data: Partial<DailyRecord> }[]): Promise<void> {
+export async function saveBatchDailyRecords(date: string, updates: { customerId: string, data: Partial<DailyRecord> }[]): Promise<void> {
   const s = LOCAL.get();
   const batch = writeBatch(db);
   
@@ -338,6 +342,13 @@ export async function getDailyRecords(customerId: string, year: number, month: n
 
 // ─── Payments ─────────────────────────────────────────────
 export async function recordPayment(customerId: string, paymentData: any): Promise<string> {
+  return withRateLimit(
+    () => _recordPayment(customerId, paymentData),
+    [globalLimiter, paymentLimiter],
+  );
+}
+
+async function _recordPayment(customerId: string, paymentData: any): Promise<string> {
   const { amount, month, year, method = 'cash', note = '', date } = paymentData;
   const payId = `pay_${Date.now()}`;
   const payload = { id: payId, amount: parseFloat(amount), month, year, method, note, date };
@@ -376,6 +387,8 @@ export async function recordPayment(customerId: string, paymentData: any): Promi
 
   return payId;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function getPayments(customerId: string, year?: number, month?: number): Promise<Payment[]> {
   try {
