@@ -28,6 +28,10 @@ import { generateIndividualPDF } from '../utils/reports';
 
 const Reports: React.FC = () => {
   const { customers, settings, loading, refreshCustomers, logout } = useAppContext();
+
+  useEffect(() => {
+    refreshCustomers();
+  }, []);
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [search, setSearch] = useState('');
@@ -50,7 +54,7 @@ const Reports: React.FC = () => {
     const fetchStats = async () => {
       setStatsLoading(true);
       try {
-        const promises = customers.map(c => updateMonthlySummary(c.id, year, month));
+        const promises = customers.map(c => getMonthlySummary(c.id, year, month));
         const summaries = await Promise.all(promises);
         
         let bill = 0;
@@ -273,7 +277,9 @@ const Reports: React.FC = () => {
         )}
         {filteredCustomers.map((c, index) => {
           const summ = customerSummaries[c.id];
-          const monthDue = (summ?.current_bill || 0) - (summ?.total_paid || 0);
+          if (!summ) return null;
+          
+          const monthDue = summ.current_bill - summ.total_paid;
           // A month is only pending if its own bill is unpaid AND the customer still owes money overall
           const isPending = monthDue > 0 && (c.total_balance || 0) > 0;
           const initials = c.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
-import { updateMonthlySummary, MonthlySummary } from '../services/db';
+import { getMonthlySummary, updateMonthlySummary, MonthlySummary } from '../services/db';
 import { formatCurrency, getMonthName, getPrevMonth, getNextMonth, formatDate } from '../utils/calculations';
 import { generateIndividualPDF } from '../utils/reports';
 
@@ -216,7 +216,11 @@ const StatementCard = ({ customer, summ, settings, month, year }: any) => {
 };
 
 const Statement: React.FC = () => {
-  const { customers, settings, loading } = useAppContext();
+  const { customers, settings, loading, refreshCustomers } = useAppContext();
+
+  useEffect(() => {
+    refreshCustomers();
+  }, []);
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [customerSummaries, setCustomerSummaries] = useState<Record<string, MonthlySummary>>({});
@@ -229,7 +233,7 @@ const Statement: React.FC = () => {
     const fetchAll = async () => {
       setFetching(true);
       try {
-        const promises = customers.map(c => updateMonthlySummary(c.id, year, month));
+        const promises = customers.map(c => getMonthlySummary(c.id, year, month));
         const summaries = await Promise.all(promises);
         
         const summariesMap: Record<string, MonthlySummary> = {};

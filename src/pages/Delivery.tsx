@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Calendar as CalendarIcon, 
@@ -32,6 +32,7 @@ interface SessionEntry { qty: number; collected: boolean; noDelivery: boolean }
 const Delivery: React.FC = () => {
   const { customers, settings, loading, refreshCustomers, logout } = useAppContext();
   const [date, setDate] = useState(formatDate(new Date(), 'iso'));
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [activeSession, setActiveSession] = useState<'morning' | 'evening'>('morning');
   const [sessionData, setSessionData] = useState<Record<string, { morning: SessionEntry, evening: SessionEntry }>>({});
   const [saving, setSaving] = useState(false);
@@ -221,12 +222,38 @@ const Delivery: React.FC = () => {
            <div className="absolute top-1/2 left-0 w-16 h-16 bg-white/5 rounded-full blur-2xl -ml-12" />
            
            {/* Date Header inside Hero */}
-           <div className="flex items-center justify-between mb-8 opacity-90 border-b border-white/10 pb-4">
-             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/10">
+           <div className="flex items-center justify-between mb-8 opacity-90 border-b border-white/10 pb-4 relative">
+             <div 
+               className="flex items-center gap-3 relative group cursor-pointer"
+               onPointerDownCapture={(e) => e.stopPropagation()}
+               onClick={() => {
+                 try {
+                   dateInputRef.current?.showPicker();
+                 } catch (err) {
+                   dateInputRef.current?.focus();
+                 }
+               }}
+             >
+                <input 
+                  ref={dateInputRef}
+                  type="date"
+                  value={date}
+                  max={formatDate(new Date(), 'iso')}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const today = new Date();
+                      today.setHours(0,0,0,0);
+                      const newDate = new Date(e.target.value);
+                      newDate.setHours(0,0,0,0);
+                      if (newDate <= today) setDate(e.target.value);
+                    }
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 pointer-events-none"
+                />
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/10 group-active:scale-95 transition-transform pointer-events-none">
                    <CalendarIcon size={18} className="text-indigo-200" />
                 </div>
-                <div>
+                <div className="group-active:opacity-80 transition-opacity pointer-events-none">
                    <p className="text-indigo-300 text-[9px] font-bold uppercase tracking-widest leading-none mb-1">Schedule View</p>
                    <p className="text-xs font-black text-white uppercase tracking-[0.1em]">{formatDate(date, 'full')}</p>
                 </div>

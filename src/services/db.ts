@@ -410,18 +410,24 @@ export async function getPayments(customerId: string, year?: number, month?: num
 }
 
 // ─── Monthly Summary ──────────────────────────────────────
-export async function updateMonthlySummary(customerId: string, year: number, month: number): Promise<MonthlySummary> {
+export async function updateMonthlySummary(customerId: string, year: number, month: number): Promise<any> {
   const [records, allPayments] = await Promise.all([
     getDailyRecords(customerId, year, month).catch(() => []),
     getPayments(customerId).catch(() => [])
   ]);
+
+  const attributedPayments = allPayments.filter(p => p.month === month && p.year === year);
+
+  // Skip generating zero-bills for months where the customer had no activity or wasn't added yet
+  if (records.length === 0 && attributedPayments.length === 0) {
+    return null;
+  }
 
   const total_litres = records.reduce((s, r) => s + (parseFloat(r.total_litres as any) || 0), 0);
   const latestRecord = records.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
   const rate_per_litre = parseFloat(latestRecord?.rate_per_litre as any || 60);
 
   const current_bill = Math.round(total_litres * rate_per_litre);
-  const attributedPayments = allPayments.filter(p => p.month === month && p.year === year);
   const total_paid = attributedPayments.reduce((s, p) => s + (p.amount || 0), 0);
 
   const pending_balance = Math.max(0, current_bill - total_paid);

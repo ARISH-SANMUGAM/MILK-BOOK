@@ -17,12 +17,16 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
-import { updateMonthlySummary, MonthlySummary } from '../services/db';
+import { getMonthlySummary, updateMonthlySummary, MonthlySummary } from '../services/db';
 import { formatCurrency, getMonthName, getPrevMonth, getNextMonth } from '../utils/calculations';
 import { generateIndividualPDF, generateBulkInvoicesPDF } from '../utils/reports';
 
 const Bills: React.FC = () => {
-  const { customers, settings, loading, logout } = useAppContext();
+  const { customers, settings, loading, logout, refreshCustomers } = useAppContext();
+
+  useEffect(() => {
+    refreshCustomers();
+  }, []);
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [search, setSearch] = useState('');
@@ -65,7 +69,7 @@ const Bills: React.FC = () => {
     const fetchAll = async () => {
       setFetching(true);
       try {
-        const promises = customers.map(c => updateMonthlySummary(c.id, year, month));
+        const promises = customers.map(c => getMonthlySummary(c.id, year, month));
         const summaries = await Promise.all(promises);
         
         const summariesMap: Record<string, MonthlySummary> = {};
@@ -298,8 +302,7 @@ const Bills: React.FC = () => {
                                   <th className="text-left font-bold py-1.5 uppercase text-[7px] tracking-widest">Date</th>
                                   <th className="text-center font-bold uppercase text-[7px] tracking-widest">Morn</th>
                                   <th className="text-center font-bold uppercase text-[7px] tracking-widest">Eve</th>
-                                  <th className="text-center font-bold uppercase text-[7px] tracking-widest">Qty</th>
-                                  <th className="text-right font-bold pr-2 uppercase text-[7px] tracking-widest">Total</th>
+                                  <th className="text-right font-bold pr-2 uppercase text-[7px] tracking-widest">Total Qty</th>
                                </tr>
                             </thead>
                             <tbody>
@@ -322,13 +325,18 @@ const Bills: React.FC = () => {
                                            </td>
                                            <td className="py-1.5 text-center text-orange-600 font-black">{mQty > 0 ? mQty : '—'}</td>
                                            <td className="py-1.5 text-center text-indigo-600 font-black">{eQty > 0 ? eQty : '—'}</td>
-                                           <td className="py-1.5 text-center text-slate-900 font-black">{dailyTotal}L</td>
-                                           <td className="py-1.5 text-right font-black text-slate-800 pr-1">{runningTotalValue.toFixed(1)}L</td>
+                                           <td className="py-1.5 text-right font-black text-slate-800 pr-1">{dailyTotal}L</td>
                                         </tr>
                                      );
                                   });
                                })()}
                             </tbody>
+                            <tfoot className="bg-slate-50/80">
+                               <tr>
+                                  <td colSpan={3} className="py-2.5 text-right font-bold text-[8px] uppercase tracking-widest text-slate-500 pr-4">Total Consumed</td>
+                                  <td className="py-2.5 text-right font-black text-indigo-700 pr-1 text-sm">{summ.total_litres}L</td>
+                               </tr>
+                            </tfoot>
                          </table>
                          
                          {summ.daily_entries.filter(e => (parseFloat(e.morning_qty as any) || 0) > 0 || (parseFloat(e.evening_qty as any) || 0) > 0).length > 5 && (
