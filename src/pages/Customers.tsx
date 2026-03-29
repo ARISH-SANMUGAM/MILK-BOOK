@@ -20,9 +20,11 @@ import {
 import { useAppContext } from '../context/AppContext';
 import { saveCustomer, deleteCustomer, Customer } from '../services/db';
 import { formatCurrency } from '../utils/calculations';
+import UserMenu from '../components/UserMenu';
+
 
 const Customers: React.FC = () => {
-  const { customers, refreshCustomers, loading, logout } = useAppContext();
+  const { customers, refreshCustomers, loading } = useAppContext();
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -109,15 +111,7 @@ const Customers: React.FC = () => {
           <h1 className="text-xl font-bold text-[#1e1b4b]">Customers</h1>
           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">{customers.length} Members</p>
         </div>
-        <motion.button 
-          whileTap={{ scale: 0.9 }}
-          onClick={() => {
-            if (window.confirm("Are you sure you want to logout?")) logout();
-          }}
-          className="w-10 h-10 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center border border-slate-200 shadow-sm"
-        >
-          <User size={20} />
-        </motion.button>
+        <UserMenu />
       </div>
 
       <div className="px-6 py-4">

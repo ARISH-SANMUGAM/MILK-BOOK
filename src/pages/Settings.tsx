@@ -16,9 +16,11 @@ import {
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { saveSettings } from '../services/db';
+import UserMenu from '../components/UserMenu';
+
 
 const Settings: React.FC = () => {
-  const { settings, setSettings, logout } = useAppContext();
+  const { settings, setSettings } = useAppContext();
   const [formData, setFormData] = useState({ ...settings, upiId: settings.upiId || '' });
   const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'system'>('profile');
   const [saving, setSaving] = useState(false);
@@ -81,15 +83,7 @@ const Settings: React.FC = () => {
                 <span className="text-[9px] font-bold uppercase tracking-widest">Saved</span>
               </div>
             )}
-            <motion.button 
-              whileTap={{ scale: 0.9 }}
-              onClick={() => {
-                if (window.confirm("Are you sure you want to logout?")) logout();
-              }}
-              className="w-10 h-10 bg-white text-slate-500 rounded-full flex items-center justify-center border border-indigo-100 shadow-sm transition-all active:bg-slate-50"
-            >
-              <User size={20} />
-            </motion.button>
+            <UserMenu />
           </div>
       </div>
 

@@ -24,13 +24,14 @@ import {
   Phone
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
+import UserMenu from '../components/UserMenu';
 import { saveBatchDailyRecords, getDailyRecord } from '../services/db';
 import { formatDate, calcDailyAmount } from '../utils/calculations';
 
 interface SessionEntry { qty: number; collected: boolean; noDelivery: boolean }
 
 const Delivery: React.FC = () => {
-  const { customers, settings, loading, refreshCustomers, logout } = useAppContext();
+  const { customers, settings, loading, refreshCustomers } = useAppContext();
   const [date, setDate] = useState(formatDate(new Date(), 'iso'));
   const dateInputRef = useRef<HTMLInputElement>(null);
   const [activeSession, setActiveSession] = useState<'morning' | 'evening'>('morning');
@@ -186,15 +187,7 @@ const Delivery: React.FC = () => {
               Today
             </motion.button>
           )}
-          <motion.button 
-            whileTap={{ scale: 0.9 }}
-            onClick={() => {
-              if (window.confirm("Are you sure you want to logout?")) logout();
-            }}
-            className="w-10 h-10 bg-white text-slate-500 rounded-full flex items-center justify-center border border-indigo-100 shadow-sm transition-all active:bg-slate-50"
-          >
-            <User size={20} />
-          </motion.button>
+         <UserMenu />
         </div>
       </div>
 

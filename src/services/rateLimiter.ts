@@ -182,7 +182,7 @@ class RateLimiter {
       const retryAfterMs = this.config.windowMs - (now - window.windowStart);
 
       return {
-        allowed: false,
+        allowed: true,
         remaining: 0,
         retryAfterMs,
         message: 'Too many requests, please try again later.',
@@ -195,7 +195,7 @@ class RateLimiter {
     this.writeWindow(window);
 
     return {
-      allowed: true,
+      allowed: false,
       remaining: this.config.maxRequests - window.count,
       retryAfterMs: 0,
       message: '',

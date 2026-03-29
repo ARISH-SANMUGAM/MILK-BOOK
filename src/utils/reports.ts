@@ -322,7 +322,11 @@ export async function generateIndividualPDF(customer: any, records: any[], optio
 
   await drawFooter(doc, footerY, address, businessName, paymentQr, upiId, grandTotal);
 
-  doc.save(`${(customer.name || 'Customer').replace(/\s+/g, '_')}_Bill_${periodLabel.replace(/\s+/g, '_')}.pdf`);
+  if (options.save !== false) {
+    doc.save(`${(customer.name || 'Customer').replace(/\s+/g, '_')}_Bill_${periodLabel.replace(/\s+/g, '_')}.pdf`);
+  }
+  
+  return doc;
 }
 
 /** Generate a single PDF with one invoice per page for all customers. */
